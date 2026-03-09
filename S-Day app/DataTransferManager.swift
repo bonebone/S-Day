@@ -18,6 +18,7 @@ struct SDayExportData: Codable {
     var patients: [ExportedPatient]
     var tagColors: [String: Int]
     var appAppearance: AppAppearance?
+    var requireBiometrics: Bool?
 }
 
 /// A custom document type to support .fileExporter
@@ -62,10 +63,14 @@ class DataTransferManager {
         let rawAppearance = UserDefaults.standard.string(forKey: "appAppearance") ?? AppAppearance.system.rawValue
         let currentAppearance = AppAppearance(rawValue: rawAppearance) ?? .system
         
+        // Use UserDefaults to retrieve toggle state
+        let currentRequireBiometrics = UserDefaults.standard.bool(forKey: "requireBiometrics")
+        
         return SDayExportData(
             patients: exportedPatients,
             tagColors: TagColorStore.shared.colorIndices,
-            appAppearance: currentAppearance
+            appAppearance: currentAppearance,
+            requireBiometrics: currentRequireBiometrics
         )
     }
     
@@ -78,10 +83,16 @@ class DataTransferManager {
             }
         }
         
-        // 2. Clear and set tags + appearance
+        // 2. Clear and set tags + app state settings
         TagColorStore.shared.colorIndices = exportData.tagColors
         if let importedAppearance = exportData.appAppearance {
             UserDefaults.standard.set(importedAppearance.rawValue, forKey: "appAppearance")
+        }
+        if let importedBiometrics = exportData.requireBiometrics {
+            UserDefaults.standard.set(importedBiometrics, forKey: "requireBiometrics")
+        } else {
+            // Unset or disable if not present in legacy export
+            UserDefaults.standard.set(false, forKey: "requireBiometrics")
         }
         
         // 3. Create new patients

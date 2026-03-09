@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
+import LocalAuthentication
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
@@ -18,6 +19,9 @@ struct SettingsView: View {
     
     // Appearance state
     @AppStorage("appAppearance") private var appearance: AppAppearance = .system
+    
+    // Privacy state
+    @AppStorage("requireBiometrics") private var requireBiometrics: Bool = false
     
     // Toast notification state
     @State private var showingToast = false
@@ -52,6 +56,12 @@ struct SettingsView: View {
                             ForEach(AppAppearance.allCases) { style in
                                 Text(style.rawValue).tag(style)
                             }
+                        }
+                    }
+                    
+                    Section(header: Text("隐私保护")) {
+                        Toggle(isOn: $requireBiometrics) {
+                            Label("要求 Face ID / 密码", systemImage: "faceid")
                         }
                     }
                     
