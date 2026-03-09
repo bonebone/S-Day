@@ -624,3 +624,30 @@ struct FlowLayout: Layout {
         }
     }
 }
+
+// MARK: - Smart Date Formatting Helpers
+
+/// 术前分组标题：计划今天手术 / 计划明天手术 / 计划 M月d日 (周x) 手术 / 手术日期待定
+func formatPreOpDate(_ date: Date?) -> String {
+    guard let d = date else { return "手术日期待定" }
+    let calendar = Calendar.current
+    if calendar.isDateInToday(d)    { return "计划今天手术" }
+    if calendar.isDateInTomorrow(d) { return "计划明天手术" }
+    let isCurrentYear = calendar.isDate(d, equalTo: Date(), toGranularity: .year)
+    let f = DateFormatter()
+    f.locale = Locale(identifier: "zh_CN")
+    f.dateFormat = isCurrentYear ? "M月d日 (E)" : "yyyy年M月d日 (E)"
+    return "计划 \(f.string(from: d)) 手术"
+}
+
+/// 术后分组标题：今天手术 / 昨天手术 / M月d日 (周x) 手术
+func formatPostOpDate(_ date: Date) -> String {
+    let calendar = Calendar.current
+    if calendar.isDateInToday(date)     { return "今天手术" }
+    if calendar.isDateInYesterday(date) { return "昨天手术" }
+    let isCurrentYear = calendar.isDate(date, equalTo: Date(), toGranularity: .year)
+    let f = DateFormatter()
+    f.locale = Locale(identifier: "zh_CN")
+    f.dateFormat = isCurrentYear ? "M月d日 (E)" : "yyyy年M月d日 (E)"
+    return "\(f.string(from: date)) 手术"
+}

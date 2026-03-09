@@ -56,7 +56,7 @@ struct PostOpView: View {
                     ForEach(groupedPostOpPatients, id: \.key) { group in
                         Section(header: 
                             HStack {
-                                Text(dateFormatter.string(from: group.key))
+                                Text(formatPostOpDate(group.key))
                                     .font(.subheadline)
                                     .fontWeight(.medium)
                                     .foregroundColor(.secondary)
@@ -149,10 +149,3 @@ struct PostOpView: View {
     PostOpView()
 }
 
-private let dateFormatter: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.dateStyle = .medium
-    formatter.timeStyle = .none
-    formatter.locale = Locale(identifier: "zh_CN")
-    return formatter
-}()

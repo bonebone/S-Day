@@ -61,7 +61,7 @@ struct PreOpView: View {
                     ForEach(groupedPreOpPatients, id: \.key) { group in
                         Section(header: 
                             HStack {
-                                Text(headerText(for: group.key))
+                                Text(formatPreOpDate(group.key))
                                     .font(.subheadline)
                                     .fontWeight(.medium)
                                     .foregroundColor(.secondary)
@@ -109,11 +109,7 @@ struct PreOpView: View {
         }
     }
     
-    private func headerText(for date: Date?) -> String {
-        guard let date = date else { return "未安排手术" }
-        return dateFormatter.string(from: date)
-    }
-    
+
     private func addPatient(name: String, tags: [String]) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !tags.isEmpty else { return }
@@ -169,10 +165,3 @@ struct PreOpView: View {
     }
 
 
-private let dateFormatter: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.dateStyle = .medium
-    formatter.timeStyle = .none
-    formatter.locale = Locale(identifier: "zh_CN")
-    return formatter
-}()
