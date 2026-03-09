@@ -1,0 +1,87 @@
+import Foundation
+import SwiftData
+import UniformTypeIdentifiers
+import SwiftUI
+
+/// Structured data for exporting and importing
+struct SDayExportData: Codable {
+    struct ExportedPatient: Codable {
+        var id: UUID
+        var rawInput: String
+        var parsedName: String?
+        var surgeryDate: Date?
+        var tags: [String]
+        var createdAt: Date
+        var order: Int
+    }
+    
+    var patients: [ExportedPatient]
+    var tagColors: [String: Int]
+}
+
+/// A custom document type to support .fileExporter
+struct SDayExportDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.json] }
+    
+    var data: SDayExportData
+    
+    init(data: SDayExportData) {
+        self.data = data
+    }
+    
+    init(configuration: ReadConfiguration) throws {
+        guard let fileData = configuration.file.regularFileContents else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        self.data = try JSONDecoder().decode(SDayExportData.self, from: fileData)
+    }
+    
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .prettyPrinted
+        let fileData = try encoder.encode(data)
+        return .init(regularFileWithContents: fileData)
+    }
+}
+
+class DataTransferManager {
+    static func createExportData(from patients: [Patient]) -> SDayExportData {
+        let exportedPatients = patients.map { p in
+            SDayExportData.ExportedPatient(
+                id: p.id,
+                rawInput: p.rawInput,
+                parsedName: p.parsedName,
+                surgeryDate: p.surgeryDate,
+                tags: p.tags,
+                createdAt: p.createdAt,
+                order: p.order
+            )
+        }
+        
+        return SDayExportData(
+            patients: exportedPatients,
+            tagColors: TagColorStore.shared.colorIndices
+        )
+    }
+    
+    @MainActor
+    static func importData(_ exportData: SDayExportData, into context: ModelContext) {
+        // 1. Clear existing patients
+        if let existing = try? context.fetch(FetchDescriptor<Patient>()) {
+            for p in existing {
+                context.delete(p)
+            }
+        }
+        
+        // 2. Clear and set tags
+        TagColorStore.shared.colorIndices = exportData.tagColors
+        
+        // 3. Create new patients
+        for ep in exportData.patients {
+            let p = Patient(rawInput: ep.rawInput, parsedName: ep.parsedName, surgeryDate: ep.surgeryDate, tags: ep.tags, order: ep.order)
+            p.id = ep.id
+            p.createdAt = ep.createdAt
+            context.insert(p)
+        }
+    }
+}
