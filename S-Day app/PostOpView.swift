@@ -34,18 +34,19 @@ struct PostOpView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 // Custom Large Title for maximum space control
-                HStack {
+                HStack(alignment: .center) {
                     Text("术后")
                         .font(.largeTitle)
                         .bold()
-                    Spacer()
+                        .layoutPriority(1)
+                    
+                    Spacer(minLength: 16)
+                    
+                    NativeSearchBar(text: $searchText, placeholder: "搜索术后...")
                 }
                 .padding(.horizontal)
                 .padding(.top, 4) // Minimal distance to the top safe area!
-                .padding(.bottom, 4) // Minimal distance to the list!
-                
-                NativeSearchBar(text: $searchText, placeholder: "搜索术后患者姓名或标签...")
-                
+                .padding(.bottom, 8) // Minimal distance to the list!
                 List {
                 if groupedPostOpPatients.isEmpty {
                     Text("暂无术后病人")

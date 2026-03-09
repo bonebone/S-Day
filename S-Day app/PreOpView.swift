@@ -38,18 +38,19 @@ struct PreOpView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 // Custom Large Title for maximum space control
-                HStack {
+                HStack(alignment: .center) {
                     Text("术前")
                         .font(.largeTitle)
                         .bold()
-                    Spacer()
+                        .layoutPriority(1)
+                    
+                    Spacer(minLength: 16)
+                    
+                    NativeSearchBar(text: $searchText, placeholder: "搜索术前...")
                 }
                 .padding(.horizontal)
                 .padding(.top, 4) // Minimal distance to the top safe area!
-                .padding(.bottom, 4) // Minimal distance to the list!
-                
-                NativeSearchBar(text: $searchText, placeholder: "搜索术前患者姓名或标签...")
-                
+                .padding(.bottom, 8) // Minimal distance to the list!
                 List {
                     // Always place the ghost row at the very top conceptually creating a new unassigned patient
                     GhostPatientRow { newName, newTags in

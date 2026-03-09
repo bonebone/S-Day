@@ -541,11 +541,10 @@ struct NativeSearchBar: View {
                 }
             }
         }
-        .padding(8)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
         .background(Color(UIColor.systemGray6))
-        .cornerRadius(10)
-        .padding(.horizontal)
-        .padding(.bottom, 6)
+        .clipShape(Capsule())
     }
 }
 

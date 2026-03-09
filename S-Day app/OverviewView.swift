@@ -26,18 +26,19 @@ struct OverviewView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 // Custom Large Title for maximum space control
-                HStack {
+                HStack(alignment: .center) {
                     Text("概览")
                         .font(.largeTitle)
                         .bold()
-                    Spacer()
+                        .layoutPriority(1)
+                    
+                    Spacer(minLength: 16)
+                    
+                    NativeSearchBar(text: $searchText, placeholder: "全局快速定位...")
                 }
                 .padding(.horizontal)
                 .padding(.top, 4) // Minimal distance to the top safe area!
-                .padding(.bottom, 4) // Minimal distance to the list!
-                
-                NativeSearchBar(text: $searchText, placeholder: "全局搜索：快速定位所有患者...")
-                
+                .padding(.bottom, 8) // Minimal distance to the list!
                 List {
                     if !searchText.isEmpty {
                         if searchResults.isEmpty {
