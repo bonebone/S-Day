@@ -479,6 +479,7 @@ struct BackspaceDetectingTextField: UIViewRepresentable {
 
         func textFieldShouldReturn(_ textField: UITextField) -> Bool {
             parent.onSubmit()
+            textField.resignFirstResponder()
             return false
         }
     }
@@ -512,6 +513,39 @@ func completeTag(_ tag: String, in text: inout String) {
         if let fullRange = Range(match.range, in: text) {
             text.replaceSubrange(fullRange, with: "#\(tag) ")
         }
+    }
+}
+
+// MARK: - Native Search Bar
+struct NativeSearchBar: View {
+    @Binding var text: String
+    var placeholder: String = "搜索..."
+    
+    var body: some View {
+        HStack {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(.secondary)
+            
+            TextField(placeholder, text: $text)
+                .submitLabel(.search)
+                .autocorrectionDisabled()
+            
+            if !text.isEmpty {
+                Button(action: {
+                    withAnimation {
+                        text = ""
+                    }
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .padding(8)
+        .background(Color(UIColor.systemGray6))
+        .cornerRadius(10)
+        .padding(.horizontal)
+        .padding(.bottom, 6)
     }
 }
 

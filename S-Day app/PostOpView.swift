@@ -7,10 +7,18 @@ struct PostOpView: View {
     @Query private var patients: [Patient]
     
     @State private var collapsedDates: Set<Date> = []
+    @State private var searchText = ""
     
     // Group post-op patients by their surgery date
     var groupedPostOpPatients: [(key: Date, value: [Patient])] {
-        let unsortedPostOp = patients.filter { $0.isPostOp }
+        let unsortedPostOp = patients.filter { patient in 
+            if !patient.isPostOp { return false }
+            if searchText.isEmpty { return true }
+            let matchesText = patient.rawInput.localizedCaseInsensitiveContains(searchText) || (patient.parsedName?.localizedCaseInsensitiveContains(searchText) ?? false)
+            let matchesTag = patient.tags.contains { $0.localizedCaseInsensitiveContains(searchText) }
+            return matchesText || matchesTag
+        }
+        
         let dict = Dictionary(grouping: unsortedPostOp) { patient -> Date in
             // Post op patients should always have a date, but default to distant past just in case
             return Calendar.current.startOfDay(for: patient.surgeryDate ?? Date.distantPast)
@@ -35,6 +43,8 @@ struct PostOpView: View {
                 .padding(.horizontal)
                 .padding(.top, 4) // Minimal distance to the top safe area!
                 .padding(.bottom, 4) // Minimal distance to the list!
+                
+                NativeSearchBar(text: $searchText, placeholder: "搜索术后患者姓名或标签...")
                 
                 List {
                 if groupedPostOpPatients.isEmpty {

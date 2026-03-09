@@ -7,10 +7,18 @@ struct PreOpView: View {
     @Query private var patients: [Patient]
     
     @State private var collapsedDates: Set<Date?> = []
+    @State private var searchText = ""
     
     // Group patients by their surgery date (ignoring time)
     var groupedPreOpPatients: [(key: Date?, value: [Patient])] {
-        let unsortedPreOp = patients.filter { !$0.isPostOp }
+        let unsortedPreOp = patients.filter { patient in 
+            if patient.isPostOp { return false }
+            if searchText.isEmpty { return true }
+            let matchesText = patient.rawInput.localizedCaseInsensitiveContains(searchText) || (patient.parsedName?.localizedCaseInsensitiveContains(searchText) ?? false)
+            let matchesTag = patient.tags.contains { $0.localizedCaseInsensitiveContains(searchText) }
+            return matchesText || matchesTag
+        }
+        
         let dict = Dictionary(grouping: unsortedPreOp) { patient -> Date? in
             guard let date = patient.surgeryDate else { return nil }
             return Calendar.current.startOfDay(for: date)
@@ -39,6 +47,8 @@ struct PreOpView: View {
                 .padding(.horizontal)
                 .padding(.top, 4) // Minimal distance to the top safe area!
                 .padding(.bottom, 4) // Minimal distance to the list!
+                
+                NativeSearchBar(text: $searchText, placeholder: "搜索术前患者姓名或标签...")
                 
                 List {
                     // Always place the ghost row at the very top conceptually creating a new unassigned patient

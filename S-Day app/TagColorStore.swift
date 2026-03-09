@@ -7,9 +7,9 @@ final class TagColorStore: ObservableObject {
     static let shared = TagColorStore()
 
     /// Built-in system tags: always present, non-deletable, non-renameable.
-    static let builtinTags: [String] = ["需追踪", "特殊病例"]
-    /// Default color indices for built-in tags (orange for 追踪, purple for 特殊)
-    private static let builtinDefaults: [String: Int] = ["需追踪": 6, "特殊病例": 8]
+    static let builtinTags: [String] = ["需追踪", "收藏"]
+    /// Default color indices for built-in tags (orange for 追踪, purple for 收藏)
+    private static let builtinDefaults: [String: Int] = ["需追踪": 6, "收藏": 8]
 
     private let defaultsKey = "tagColorIndices"
 
