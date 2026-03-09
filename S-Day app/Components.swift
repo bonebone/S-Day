@@ -29,7 +29,9 @@ struct PatientRow: View {
             }
             
             Button {
-                showingDatePicker = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    showingDatePicker = true
+                }
             } label: {
                 Label("设日期", systemImage: "calendar")
                     .labelStyle(.iconOnly)
@@ -37,7 +39,9 @@ struct PatientRow: View {
             .tint(.blue)
             
             Button {
-                showingTagSheet = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    showingTagSheet = true
+                }
             } label: {
                 Label("标签", systemImage: "tag")
                     .labelStyle(.iconOnly)
