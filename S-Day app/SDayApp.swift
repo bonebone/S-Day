@@ -16,9 +16,12 @@ struct SDayApp: App {
         }
     }()
 
+    @AppStorage("appAppearance") private var appearance: AppAppearance = .system
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .preferredColorScheme(appearance.colorScheme)
                 .task {
                     // Bootstrap: ensure all tags already on patients exist in TagColorStore.
                     // This handles data that predates the tag manager.
@@ -37,6 +40,25 @@ struct SDayApp: App {
             for tag in patient.tags where store.colorIndices[tag] == nil {
                 store.colorIndices[tag] = TagColorStore.hashIndex(for: tag)
             }
+        }
+    }
+}
+
+enum AppAppearance: String, CaseIterable, Identifiable, Codable {
+    case system = "跟随系统"
+    case light = "浅色"
+    case dark = "深色"
+    
+    var id: String { rawValue }
+    
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system:
+            return nil
+        case .light:
+            return .light
+        case .dark:
+            return .dark
         }
     }
 }

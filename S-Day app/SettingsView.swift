@@ -16,6 +16,9 @@ struct SettingsView: View {
     @State private var showingImportConfirm = false
     @State private var pendingImportURL: URL? = nil
     
+    // Appearance state
+    @AppStorage("appAppearance") private var appearance: AppAppearance = .system
+    
     // Toast notification state
     @State private var showingToast = false
     @State private var toastMessage = ""
@@ -42,6 +45,14 @@ struct SettingsView: View {
                         Text("极速外科病人管理")
                             .font(.caption)
                             .foregroundColor(.secondary)
+                    }
+                    
+                    Section(header: Text("外观")) {
+                        Picker("主题", selection: $appearance) {
+                            ForEach(AppAppearance.allCases) { style in
+                                Text(style.rawValue).tag(style)
+                            }
+                        }
                     }
                     
                     Section(header: Text("标签")) {

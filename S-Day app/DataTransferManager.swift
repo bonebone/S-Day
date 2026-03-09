@@ -17,6 +17,7 @@ struct SDayExportData: Codable {
     
     var patients: [ExportedPatient]
     var tagColors: [String: Int]
+    var appAppearance: AppAppearance?
 }
 
 /// A custom document type to support .fileExporter
@@ -58,9 +59,13 @@ class DataTransferManager {
             )
         }
         
+        let rawAppearance = UserDefaults.standard.string(forKey: "appAppearance") ?? AppAppearance.system.rawValue
+        let currentAppearance = AppAppearance(rawValue: rawAppearance) ?? .system
+        
         return SDayExportData(
             patients: exportedPatients,
-            tagColors: TagColorStore.shared.colorIndices
+            tagColors: TagColorStore.shared.colorIndices,
+            appAppearance: currentAppearance
         )
     }
     
@@ -73,8 +78,11 @@ class DataTransferManager {
             }
         }
         
-        // 2. Clear and set tags
+        // 2. Clear and set tags + appearance
         TagColorStore.shared.colorIndices = exportData.tagColors
+        if let importedAppearance = exportData.appAppearance {
+            UserDefaults.standard.set(importedAppearance.rawValue, forKey: "appAppearance")
+        }
         
         // 3. Create new patients
         for ep in exportData.patients {
