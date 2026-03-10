@@ -32,8 +32,9 @@ struct PostOpView: View {
     
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                // Custom Large Title for maximum space control
+            ScrollViewReader { proxy in
+                VStack(spacing: 0) {
+                    // Custom Large Title for maximum space control
                 HStack(alignment: .center) {
                     Text("术后")
                         .font(.largeTitle)
@@ -47,8 +48,17 @@ struct PostOpView: View {
                 .padding(.horizontal)
                 .padding(.top, 4) // Minimal distance to the top safe area!
                 .padding(.bottom, 8) // Minimal distance to the list!
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    withAnimation {
+                        proxy.scrollTo("topPosition", anchor: .top)
+                    }
+                }
+                
                 List {
-                if groupedPostOpPatients.isEmpty {
+                    Color.clear.frame(height: 0).listRowInsets(EdgeInsets()).listRowSeparator(.hidden).id("topPosition")
+                    
+                    if groupedPostOpPatients.isEmpty {
                     Text("暂无术后病人")
                         .foregroundColor(.secondary)
                         .italic()
@@ -99,6 +109,7 @@ struct PostOpView: View {
                 .environment(\.defaultMinListRowHeight, 44)
                 .environment(\.defaultMinListHeaderHeight, 28)
             }
+            } // ScrollViewReader
             .toolbar(.hidden, for: .navigationBar)
         }
     }

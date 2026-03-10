@@ -36,8 +36,9 @@ struct PreOpView: View {
     
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                // Custom Large Title for maximum space control
+            ScrollViewReader { proxy in
+                VStack(spacing: 0) {
+                    // Custom Large Title for maximum space control
                 HStack(alignment: .center) {
                     Text("术前")
                         .font(.largeTitle)
@@ -51,12 +52,20 @@ struct PreOpView: View {
                 .padding(.horizontal)
                 .padding(.top, 4) // Minimal distance to the top safe area!
                 .padding(.bottom, 8) // Minimal distance to the list!
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    withAnimation {
+                        proxy.scrollTo("topPosition", anchor: .top)
+                    }
+                }
+                
                 List {
                     // Always place the ghost row at the very top conceptually creating a new unassigned patient
                     GhostPatientRow { newName, newTags in
                         addPatient(name: newName, tags: newTags)
                     }
                     .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                    .id("topPosition")
                     
                     ForEach(groupedPreOpPatients, id: \.key) { group in
                         Section(header: 
@@ -101,10 +110,10 @@ struct PreOpView: View {
                 }
                 .listStyle(.plain)
                 .listSectionSpacing(0)
-                // Removed the negative padding as we now have full control natively
                 .environment(\.defaultMinListRowHeight, 44)
                 .environment(\.defaultMinListHeaderHeight, 28)
             }
+            } // ScrollViewReader
             .toolbar(.hidden, for: .navigationBar)
         }
     }
