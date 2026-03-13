@@ -46,7 +46,7 @@ struct PatientRow: View {
             }
         }
         .if(!isSelectionMode) { view in
-            view.swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            view.swipeActions(edge: .trailing, allowsFullSwipe: false) {
                 Button(role: .destructive) {
                     modelContext.delete(patient)
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
