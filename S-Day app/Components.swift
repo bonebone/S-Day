@@ -3,13 +3,31 @@ import SwiftData
 
 struct PatientRow: View {
     @Environment(\.modelContext) private var modelContext
+    @Query private var allPatients: [Patient]
     @Bindable var patient: Patient
     @State private var showingDatePicker = false
     @State private var showingTagSheet = false
     @State private var tempSurgeryDate: Date = Date()
     
+    // Optional Selection support
+    var isSelectionMode: Bool = false
+    var isSelected: Bool = false
+    var toggleSelection: (() -> Void)? = nil
+    var onSwipeSelect: (() -> Void)? = nil
+    var onCancelSelection: (() -> Void)? = nil
+    
+    // Track whether trailing swipe actions are currently revealed
+    @State private var swipeActionsOpen = false
+    
     var body: some View {
-        HStack {
+        HStack(spacing: isSelectionMode ? 8 : 0) {
+            if isSelectionMode {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(isSelected ? .blue : .gray)
+                    .font(.system(size: 20))
+                    .imageScale(.medium)
+            }
+            
             TagTokenField(
                 text: $patient.rawInput,
                 tags: $patient.tags,
@@ -17,49 +35,66 @@ struct PatientRow: View {
                 placeholder: "输入新病人信息...",
                 autoFocusIfEmpty: true
             )
+            .disabled(isSelectionMode)
+            
             Spacer()
         }
-        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-            Button(role: .destructive) {
-                modelContext.delete(patient)
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            } label: {
-                Label("删除", systemImage: "trash")
-                    .labelStyle(.iconOnly)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if isSelectionMode {
+                toggleSelection?()
             }
-            
-            Button {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                    showingDatePicker = true
-                }
-            } label: {
-                Label("设日期", systemImage: "calendar")
-                    .labelStyle(.iconOnly)
-            }
-            .tint(.blue)
-            
-            Button {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                    showingTagSheet = true
-                }
-            } label: {
-                Label("标签", systemImage: "tag")
-                    .labelStyle(.iconOnly)
-            }
-            .tint(.orange)
         }
-        .swipeActions(edge: .leading) {
-            Button {
-                // Set date to today (fast action)
-                patient.surgeryDate = Date()
-                let impact = UIImpactFeedbackGenerator(style: .medium)
-                impact.impactOccurred()
-            } label: {
-                Label("放在今天", systemImage: "calendar.badge.clock")
-                    .labelStyle(.iconOnly)
+        .if(!isSelectionMode) { view in
+            view.swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                Button(role: .destructive) {
+                    modelContext.delete(patient)
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                } label: {
+                    Label("删除", systemImage: "trash")
+                        .labelStyle(.iconOnly)
+                }
+                
+                Button {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        showingDatePicker = true
+                    }
+                } label: {
+                    Label("设日期", systemImage: "calendar")
+                        .labelStyle(.iconOnly)
+                }
+                .tint(.blue)
+                
+                Button {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        showingTagSheet = true
+                    }
+                } label: {
+                    Label("标签", systemImage: "tag")
+                        .labelStyle(.iconOnly)
+                }
+                .tint(.orange)
             }
-            .tint(.green)
         }
+        // Row-level swipe gesture: right-swipe enters selection and pre-selects this row
+        // Left-swipe in normal mode tracks that swipeActions were opened
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 30, coordinateSpace: .local)
+                .onEnded { value in
+                    let isHorizontal = abs(value.translation.width) > abs(value.translation.height) * 1.5
+                    guard isHorizontal else { return }
+                    if value.translation.width > 40 {
+                        if swipeActionsOpen {
+                            swipeActionsOpen = false
+                        } else if !isSelectionMode, let onSwipeSelect = onSwipeSelect {
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            onSwipeSelect()
+                        }
+                    } else if value.translation.width < -40 && !isSelectionMode {
+                        swipeActionsOpen = true
+                    }
+                }
+        )
         .sheet(isPresented: $showingDatePicker) {
             NavigationStack {
                 Form {
@@ -73,7 +108,7 @@ struct PatientRow: View {
                     if patient.surgeryDate != nil {
                         Section {
                             Button(role: .destructive) {
-                                patient.surgeryDate = nil
+                                movePatientsToEndOfSurgeryGroup([patient], surgeryDate: nil, allPatients: allPatients)
                                 showingDatePicker = false
                                 let impact = UIImpactFeedbackGenerator(style: .medium)
                                 impact.impactOccurred()
@@ -89,11 +124,10 @@ struct PatientRow: View {
                 }
                 .navigationTitle("设置手术日")
                 .navigationBarItems(trailing: Button("完成") {
-                    patient.surgeryDate = tempSurgeryDate
+                    movePatientsToEndOfSurgeryGroup([patient], surgeryDate: tempSurgeryDate, allPatients: allPatients)
                     showingDatePicker = false
                 })
                 .onAppear {
-                    // Initialize the temporary date specifically when the sheet is opened
                     tempSurgeryDate = patient.surgeryDate ?? Date()
                 }
             }
@@ -101,6 +135,18 @@ struct PatientRow: View {
         }
         .sheet(isPresented: $showingTagSheet) {
             TagSheetView(patient: patient, existingAllTags: existingTags())
+        }
+    }
+}
+
+// MARK: - Conditional modifier helper
+extension View {
+    @ViewBuilder
+    func `if`<Content: View>(_ condition: Bool, transform: (Self) -> Content) -> some View {
+        if condition {
+            transform(self)
+        } else {
+            self
         }
     }
 }
@@ -121,6 +167,7 @@ struct GhostPatientRow: View {
                 allTags: existingTags(),
                 placeholder: "新病人(例如：张三 #高危)...",
                 autoFocusIfEmpty: false,
+                keepFocusOnSubmit: true,
                 onSubmit: {
                     submit()
                 }
@@ -276,6 +323,7 @@ struct TagTokenField: View {
     var allTags: [String]
     var placeholder: String
     var autoFocusIfEmpty: Bool = false
+    var keepFocusOnSubmit: Bool = false
     var onSubmit: (() -> Void)? = nil
 
     @State private var isFocused: Bool = false
@@ -288,6 +336,7 @@ struct TagTokenField: View {
                 placeholder: placeholder,
                 isFocused: $isFocused,
                 autoFocusIfEmpty: autoFocusIfEmpty,
+                keepFocusOnSubmit: keepFocusOnSubmit,
                 onBackspaceWhenEmpty: {
                     if !tags.isEmpty {
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
@@ -371,9 +420,9 @@ struct TagTokenField: View {
                                         .padding(.vertical, 4)
                                         .background(Color.tagColor(for: sug).opacity(0.15))
                                         .foregroundColor(Color.tagColor(for: sug))
-                                        .cornerRadius(8)
+                                        .clipShape(Capsule())
                                         .overlay(
-                                            RoundedRectangle(cornerRadius: 8)
+                                            Capsule()
                                                 .stroke(Color.tagColor(for: sug).opacity(0.5), lineWidth: 1)
                                         )
                                 }
@@ -394,6 +443,7 @@ struct BackspaceDetectingTextField: UIViewRepresentable {
     var placeholder: String
     @Binding var isFocused: Bool
     var autoFocusIfEmpty: Bool
+    var keepFocusOnSubmit: Bool
     var onBackspaceWhenEmpty: () -> Void
     var onTagExtracted: (String) -> Void   // synchronous: called when #tag is committed by space
     var onSubmit: () -> Void
@@ -483,6 +533,14 @@ struct BackspaceDetectingTextField: UIViewRepresentable {
 
         func textFieldShouldReturn(_ textField: UITextField) -> Bool {
             parent.onSubmit()
+            guard !parent.keepFocusOnSubmit else {
+                DispatchQueue.main.async {
+                    textField.becomeFirstResponder()
+                    let endPos = textField.endOfDocument
+                    textField.selectedTextRange = textField.textRange(from: endPos, to: endPos)
+                }
+                return false
+            }
             textField.resignFirstResponder()
             return false
         }
@@ -654,4 +712,77 @@ func formatPostOpDate(_ date: Date) -> String {
     f.locale = Locale(identifier: "zh_CN")
     f.dateFormat = isCurrentYear ? "M月d日 (E)" : "yyyy年M月d日 (E)"
     return "\(f.string(from: date)) 手术"
+}
+
+struct BatchTagSheetView: View {
+    var patients: [Patient]
+    var existingAllTags: [String]
+    var onComplete: () -> Void
+    @Environment(\.dismiss) var dismiss
+    @State private var newTag: String = ""
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(header: Text("添加标签到已选 (\(patients.count)) 人")) {
+                    HStack {
+                        TextField("新标签名称", text: $newTag)
+                            .onSubmit {
+                                addBatchTag(newTag)
+                            }
+                        Button(action: { addBatchTag(newTag) }) {
+                            Image(systemName: "plus.circle.fill")
+                                .foregroundColor(newTag.trimmingCharacters(in: .whitespaces).isEmpty ? .gray : .orange)
+                        }
+                        .disabled(newTag.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                    
+                    if !existingAllTags.isEmpty {
+                        FlowLayout(spacing: 8) {
+                            ForEach(existingAllTags, id: \.self) { tag in
+                                Button(action: {
+                                    addBatchTag(tag)
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Text(tag)
+                                        Image(systemName: "plus")
+                                            .font(.caption2)
+                                    }
+                                    .font(.caption)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(Color.tagColor(for: tag).opacity(0.8))
+                                    .foregroundColor(.white)
+                                    .cornerRadius(12)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+            }
+            .navigationTitle("批量打标签")
+            .navigationBarItems(trailing: Button("完成") { 
+                onComplete()
+                dismiss() 
+            })
+        }
+    }
+    
+    private func addBatchTag(_ tag: String) {
+        let trimmed = tag.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            for patient in patients {
+                if !patient.tags.contains(trimmed) {
+                    patient.tags.append(trimmed)
+                }
+            }
+            let impact = UIImpactFeedbackGenerator(style: .medium)
+            impact.impactOccurred()
+            newTag = ""
+            onComplete()
+            dismiss()
+        }
+    }
 }

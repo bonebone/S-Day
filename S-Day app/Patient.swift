@@ -35,3 +35,28 @@ final class Patient {
         return surgeryDateStart < todayStart
     }
 }
+
+func normalizedSurgeryDay(_ date: Date?) -> Date? {
+    guard let date else { return nil }
+    return Calendar.current.startOfDay(for: date)
+}
+
+func movePatientsToEndOfSurgeryGroup(_ movingPatients: [Patient], surgeryDate: Date?, allPatients: [Patient]) {
+    let targetDay = normalizedSurgeryDay(surgeryDate)
+    let movingIDs = Set(movingPatients.map(\.id))
+    let changingPatients = movingPatients
+        .filter { normalizedSurgeryDay($0.surgeryDate) != targetDay }
+        .sorted { $0.order < $1.order }
+
+    guard !changingPatients.isEmpty else { return }
+
+    let maxOrderInTargetGroup = allPatients
+        .filter { !movingIDs.contains($0.id) && normalizedSurgeryDay($0.surgeryDate) == targetDay }
+        .map(\.order)
+        .max() ?? -1
+
+    for (offset, patient) in changingPatients.enumerated() {
+        patient.surgeryDate = surgeryDate
+        patient.order = maxOrderInTargetGroup + offset + 1
+    }
+}

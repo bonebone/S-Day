@@ -9,6 +9,13 @@ struct PostOpView: View {
     @State private var collapsedDates: Set<Date> = []
     @State private var searchText = ""
     
+    // Multiple selection states
+    @State private var isSelectionMode = false
+    @State private var selectedPatients: Set<UUID> = []
+    @State private var showBatchDatePicker = false
+    @State private var showBatchTagSheet = false
+    @State private var batchSurgeryDate: Date = Date()
+    
     // Group post-op patients by their surgery date
     var groupedPostOpPatients: [(key: Date, value: [Patient])] {
         let unsortedPostOp = patients.filter { patient in 
@@ -26,7 +33,7 @@ struct PostOpView: View {
         
         return dict.sorted { $0.key > $1.key } // Most recent dates first
             .map { (key, value) in
-                (key: key, value: value.sorted { $0.order > $1.order })
+                (key: key, value: value.sorted { $0.order < $1.order })
             }
     }
     
@@ -36,18 +43,41 @@ struct PostOpView: View {
                 VStack(spacing: 0) {
                     // Custom Large Title for maximum space control
                 HStack(alignment: .center) {
-                    Text("术后")
-                        .font(.largeTitle)
-                        .bold()
-                        .layoutPriority(1)
-                    
-                    Spacer(minLength: 16)
-                    
-                    NativeSearchBar(text: $searchText, placeholder: "搜索术后...")
+                    if isSelectionMode {
+                        Button("取消") {
+                            withAnimation {
+                                isSelectionMode = false
+                                selectedPatients.removeAll()
+                            }
+                        }
+                        Spacer()
+                        Text("已选择 \(selectedPatients.count) 人")
+                            .font(.headline)
+                        Spacer()
+                        Button("全选") {
+                            withAnimation {
+                                let allIds = groupedPostOpPatients.flatMap { $0.value }.map { $0.id }
+                                if selectedPatients.count == allIds.count {
+                                    selectedPatients.removeAll()
+                                } else {
+                                    selectedPatients = Set(allIds)
+                                }
+                            }
+                        }
+                    } else {
+                        Text("术后")
+                            .font(.largeTitle)
+                            .bold()
+                            .layoutPriority(1)
+                        
+                        Spacer(minLength: 16)
+                        
+                        NativeSearchBar(text: $searchText, placeholder: "搜索术后...")
+                    }
                 }
                 .padding(.horizontal)
-                .padding(.top, 4) // Minimal distance to the top safe area!
-                .padding(.bottom, 8) // Minimal distance to the list!
+                .padding(.top, 0)
+                .padding(.bottom, 0)
                 .contentShape(Rectangle())
                 .onTapGesture {
                     withAnimation {
@@ -66,6 +96,23 @@ struct PostOpView: View {
                     ForEach(groupedPostOpPatients, id: \.key) { group in
                         Section(header: 
                             HStack {
+                                if isSelectionMode {
+                                    let groupIds = group.value.map { $0.id }
+                                    let isAllSelected = !groupIds.isEmpty && groupIds.allSatisfy { selectedPatients.contains($0) }
+                                    Image(systemName: isAllSelected ? "checkmark.circle.fill" : "circle")
+                                        .foregroundColor(isAllSelected ? .blue : .gray)
+                                        .font(.title3)
+                                        .onTapGesture {
+                                            withAnimation {
+                                                if isAllSelected {
+                                                    selectedPatients.subtract(groupIds)
+                                                } else {
+                                                    selectedPatients.formUnion(groupIds)
+                                                }
+                                            }
+                                        }
+                                        .padding(.trailing, 4)
+                                }
                                 Text(formatPostOpDate(group.key))
                                     .font(.subheadline)
                                     .fontWeight(.medium)
@@ -90,7 +137,31 @@ struct PostOpView: View {
                         ) {
                             if !collapsedDates.contains(group.key) {
                                 ForEach(group.value) { patient in
-                                    PatientRow(patient: patient)
+                                    let isSelected = selectedPatients.contains(patient.id)
+                                    PatientRow(patient: patient,
+                                               isSelectionMode: isSelectionMode,
+                                               isSelected: isSelected,
+                                               toggleSelection: {
+                                                   withAnimation {
+                                                       if isSelected {
+                                                           selectedPatients.remove(patient.id)
+                                                       } else {
+                                                           selectedPatients.insert(patient.id)
+                                                       }
+                                                   }
+                                               },
+                                               onSwipeSelect: {
+                                                   withAnimation {
+                                                       isSelectionMode = true
+                                                       selectedPatients.insert(patient.id)
+                                                   }
+                                               },
+                                               onCancelSelection: {
+                                                   withAnimation {
+                                                       isSelectionMode = false
+                                                       selectedPatients.removeAll()
+                                                   }
+                                               })
                                         .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                                 }
                                 .onDelete { offsets in
@@ -106,11 +177,134 @@ struct PostOpView: View {
                 }
                 .listStyle(.plain)
                 .listSectionSpacing(0)
-                .environment(\.defaultMinListRowHeight, 44)
-                .environment(\.defaultMinListHeaderHeight, 28)
+                .contentMargins(.top, 0, for: .scrollContent)
+                // Left swipe in selection mode exits it
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 30, coordinateSpace: .local)
+                        .onEnded { value in
+                            let isHorizontal = abs(value.translation.width) > abs(value.translation.height) * 1.5
+                            guard isHorizontal && isSelectionMode else { return }
+                            if value.translation.width < -40 {
+                                let impact = UIImpactFeedbackGenerator(style: .light)
+                                impact.impactOccurred()
+                                withAnimation {
+                                    isSelectionMode = false
+                                    selectedPatients.removeAll()
+                                }
+                            }
+                        }
+                )
             }
             } // ScrollViewReader
             .toolbar(.hidden, for: .navigationBar)
+            .safeAreaInset(edge: .bottom) {
+                if isSelectionMode {
+                    VStack(spacing: 0) {
+                        Divider()
+                        HStack(spacing: 0) {
+                            Button(role: .destructive) {
+                                guard !selectedPatients.isEmpty else { return }
+                                let toDelete = patients.filter { selectedPatients.contains($0.id) }
+                                for p in toDelete { modelContext.delete(p) }
+                                selectedPatients.removeAll()
+                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                withAnimation {
+                                    isSelectionMode = false
+                                }
+                            } label: {
+                                Image(systemName: "trash").font(.title2)
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .disabled(selectedPatients.isEmpty)
+                            
+                            Button {
+                                guard !selectedPatients.isEmpty else { return }
+                                batchSurgeryDate = Date()
+                                showBatchDatePicker = true
+                            } label: {
+                                Image(systemName: "calendar").font(.title2)
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .disabled(selectedPatients.isEmpty)
+                            
+                            Button {
+                                guard !selectedPatients.isEmpty else { return }
+                                showBatchTagSheet = true
+                            } label: {
+                                Image(systemName: "tag").font(.title2)
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .disabled(selectedPatients.isEmpty)
+                            
+                            Button {
+                                guard !selectedPatients.isEmpty else { return }
+                                let selected = patients.filter { selectedPatients.contains($0.id) }
+                                let text = selected.map { p -> String in
+                                    let tagsText = p.tags.map { "#\($0)" }.joined(separator: " ")
+                                    return tagsText.isEmpty ? p.rawInput : "\(p.rawInput) \(tagsText)"
+                                }.joined(separator: "\n")
+                                UIPasteboard.general.string = text
+                                // Quick haptic
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                // Flash mode to let user know it's copied
+                                withAnimation {
+                                    isSelectionMode = false
+                                    selectedPatients.removeAll()
+                                }
+                            } label: {
+                                Image(systemName: "doc.on.clipboard").font(.title2)
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .disabled(selectedPatients.isEmpty)
+                        }
+                        .padding(.vertical, 12)
+                        .padding(.bottom, 8)
+                        .background(.regularMaterial)
+                    }
+                    .transition(.move(edge: .bottom))
+                }
+            }
+            .sheet(isPresented: $showBatchDatePicker) {
+                NavigationStack {
+                    Form {
+                        DatePicker("手术日期", selection: $batchSurgeryDate, displayedComponents: .date)
+                            .datePickerStyle(.graphical)
+                            .environment(\.calendar, Calendar.autoupdatingCurrent)
+                            .environment(\.locale, Locale.autoupdatingCurrent)
+                        
+                        Section {
+                            Button(role: .destructive) {
+                                let toUpdate = patients.filter { selectedPatients.contains($0.id) }
+                                for p in toUpdate { p.surgeryDate = nil }
+                                showBatchDatePicker = false
+                                withAnimation { isSelectionMode = false; selectedPatients.removeAll() }
+                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            } label: {
+                                HStack {
+                                    Spacer()
+                                    Text("清除手术日期")
+                                    Spacer()
+                                }
+                            }
+                        }
+                    }
+                    .navigationTitle("批量设日期")
+                    .navigationBarItems(trailing: Button("完成") {
+                        let toUpdate = patients.filter { selectedPatients.contains($0.id) }
+                        movePatientsToEndOfSurgeryGroup(toUpdate, surgeryDate: batchSurgeryDate, allPatients: patients)
+                        showBatchDatePicker = false
+                        withAnimation { isSelectionMode = false; selectedPatients.removeAll() }
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    })
+                }
+                .presentationDetents([.fraction(0.75), .large])
+            }
+            .sheet(isPresented: $showBatchTagSheet) {
+                let toUpdate = patients.filter { selectedPatients.contains($0.id) }
+                BatchTagSheetView(patients: toUpdate, existingAllTags: existingTags()) {
+                    withAnimation { isSelectionMode = false; selectedPatients.removeAll() }
+                }
+            }
         }
     }
     
@@ -127,7 +321,7 @@ struct PostOpView: View {
         revisedItems.move(fromOffsets: source, toOffset: destination)
         
         for (index, item) in revisedItems.enumerated() {
-            item.order = revisedItems.count - index
+            item.order = index
         }
     }
     
@@ -139,15 +333,7 @@ struct PostOpView: View {
                 let targetStart = Calendar.current.startOfDay(for: targetDate)
                 
                 if currentStart != targetStart {
-                    patient.surgeryDate = targetDate
-                    
-                    var newGroup = groupItems.filter { $0.id != patient.id }
-                    newGroup.append(patient)
-                    
-                    for (i, p) in newGroup.enumerated() {
-                        p.order = newGroup.count - i
-                    }
-                    
+                    movePatientsToEndOfSurgeryGroup([patient], surgeryDate: targetDate, allPatients: patients)
                     let impact = UIImpactFeedbackGenerator(style: .heavy)
                     impact.impactOccurred()
                 }
@@ -159,4 +345,3 @@ struct PostOpView: View {
 #Preview {
     PostOpView()
 }
-
