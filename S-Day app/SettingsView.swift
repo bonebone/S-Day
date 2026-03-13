@@ -57,6 +57,7 @@ struct SettingsView: View {
                                 Text(style.rawValue).tag(style)
                             }
                         }
+                        .pickerStyle(.segmented)
                     }
                     
                     Section(header: Text("隐私保护")) {
