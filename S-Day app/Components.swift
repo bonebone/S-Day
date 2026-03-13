@@ -3,11 +3,7 @@ import SwiftData
 
 struct PatientRow: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var allPatients: [Patient]
     @Bindable var patient: Patient
-    @State private var showingDatePicker = false
-    @State private var showingTagSheet = false
-    @State private var tempSurgeryDate: Date = Date()
     
     // Optional Selection support
     var isSelectionMode: Bool = false
@@ -15,6 +11,8 @@ struct PatientRow: View {
     var toggleSelection: (() -> Void)? = nil
     var onSwipeSelect: (() -> Void)? = nil
     var onCancelSelection: (() -> Void)? = nil
+    var onShowDatePicker: (() -> Void)? = nil
+    var onShowTagSheet: (() -> Void)? = nil
     
     // Track whether trailing swipe actions are currently revealed
     @State private var swipeActionsOpen = false
@@ -56,9 +54,7 @@ struct PatientRow: View {
                 }
                 
                 Button {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                        showingDatePicker = true
-                    }
+                    onShowDatePicker?()
                 } label: {
                     Label("设日期", systemImage: "calendar")
                         .labelStyle(.iconOnly)
@@ -66,9 +62,7 @@ struct PatientRow: View {
                 .tint(.blue)
                 
                 Button {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                        showingTagSheet = true
-                    }
+                    onShowTagSheet?()
                 } label: {
                     Label("标签", systemImage: "tag")
                         .labelStyle(.iconOnly)
@@ -95,47 +89,6 @@ struct PatientRow: View {
                     }
                 }
         )
-        .sheet(isPresented: $showingDatePicker) {
-            NavigationStack {
-                Form {
-                    Section {
-                        DatePicker("手术日期", selection: $tempSurgeryDate, displayedComponents: .date)
-                            .datePickerStyle(.graphical)
-                            .environment(\.calendar, Calendar.autoupdatingCurrent)
-                            .environment(\.locale, Locale.autoupdatingCurrent)
-                    }
-                    
-                    if patient.surgeryDate != nil {
-                        Section {
-                            Button(role: .destructive) {
-                                movePatientsToEndOfSurgeryGroup([patient], surgeryDate: nil, allPatients: allPatients)
-                                showingDatePicker = false
-                                let impact = UIImpactFeedbackGenerator(style: .medium)
-                                impact.impactOccurred()
-                            } label: {
-                                HStack {
-                                    Spacer()
-                                    Text("清除手术日期")
-                                    Spacer()
-                                }
-                            }
-                        }
-                    }
-                }
-                .navigationTitle("设置手术日")
-                .navigationBarItems(trailing: Button("完成") {
-                    movePatientsToEndOfSurgeryGroup([patient], surgeryDate: tempSurgeryDate, allPatients: allPatients)
-                    showingDatePicker = false
-                })
-                .onAppear {
-                    tempSurgeryDate = patient.surgeryDate ?? Date()
-                }
-            }
-            .presentationDetents(patient.surgeryDate != nil ? [.fraction(0.75), .large] : [.fraction(0.6)])
-        }
-        .sheet(isPresented: $showingTagSheet) {
-            TagSheetView(patient: patient, existingAllTags: existingTags())
-        }
     }
 }
 
@@ -720,32 +673,21 @@ struct BatchTagSheetView: View {
     var onComplete: () -> Void
     @Environment(\.dismiss) var dismiss
     @State private var newTag: String = ""
+    @State private var pendingTags: [String] = []
     
     var body: some View {
         NavigationStack {
             Form {
-                Section(header: Text("添加标签到已选 (\(patients.count)) 人")) {
-                    HStack {
-                        TextField("新标签名称", text: $newTag)
-                            .onSubmit {
-                                addBatchTag(newTag)
-                            }
-                        Button(action: { addBatchTag(newTag) }) {
-                            Image(systemName: "plus.circle.fill")
-                                .foregroundColor(newTag.trimmingCharacters(in: .whitespaces).isEmpty ? .gray : .orange)
-                        }
-                        .disabled(newTag.trimmingCharacters(in: .whitespaces).isEmpty)
-                    }
-                    
-                    if !existingAllTags.isEmpty {
+                if !pendingTags.isEmpty {
+                    Section(header: Text("待添加标签")) {
                         FlowLayout(spacing: 8) {
-                            ForEach(existingAllTags, id: \.self) { tag in
+                            ForEach(pendingTags, id: \.self) { tag in
                                 Button(action: {
-                                    addBatchTag(tag)
+                                    removePendingTag(tag)
                                 }) {
                                     HStack(spacing: 4) {
                                         Text(tag)
-                                        Image(systemName: "plus")
+                                        Image(systemName: "xmark")
                                             .font(.caption2)
                                     }
                                     .font(.caption)
@@ -761,28 +703,103 @@ struct BatchTagSheetView: View {
                         .padding(.vertical, 4)
                     }
                 }
+
+                Section(header: Text("添加标签到已选 (\(patients.count)) 人")) {
+                    HStack {
+                        TextField("新标签名称", text: $newTag)
+                            .onSubmit {
+                                stageBatchTag(newTag)
+                            }
+                        Button(action: { stageBatchTag(newTag) }) {
+                            Image(systemName: "plus.circle.fill")
+                                .foregroundColor(newTag.trimmingCharacters(in: .whitespaces).isEmpty ? .gray : .orange)
+                        }
+                        .disabled(newTag.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                    
+                    if !existingAllTags.isEmpty {
+                        FlowLayout(spacing: 8) {
+                            ForEach(existingAllTags, id: \.self) { tag in
+                                Button(action: {
+                                    togglePendingTag(tag)
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Text(tag)
+                                        Image(systemName: pendingTags.contains(tag) ? "checkmark" : "plus")
+                                            .font(.caption2)
+                                    }
+                                    .font(.caption)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(Color.tagColor(for: tag).opacity(pendingTags.contains(tag) ? 1.0 : 0.8))
+                                    .foregroundColor(.white)
+                                    .cornerRadius(12)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
             }
             .navigationTitle("批量打标签")
-            .navigationBarItems(trailing: Button("完成") { 
-                onComplete()
-                dismiss() 
-            })
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") {
+                        applyPendingTags()
+                    }
+                    .disabled(pendingTags.isEmpty)
+                }
+            }
         }
     }
     
-    private func addBatchTag(_ tag: String) {
+    private func stageBatchTag(_ tag: String) {
         let trimmed = tag.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty {
-            for patient in patients {
-                if !patient.tags.contains(trimmed) {
-                    patient.tags.append(trimmed)
-                }
-            }
-            let impact = UIImpactFeedbackGenerator(style: .medium)
-            impact.impactOccurred()
+        guard !trimmed.isEmpty else { return }
+        guard !pendingTags.contains(trimmed) else {
             newTag = ""
-            onComplete()
-            dismiss()
+            return
         }
+
+        pendingTags.append(trimmed)
+        pendingTags.sort()
+        newTag = ""
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    private func togglePendingTag(_ tag: String) {
+        if pendingTags.contains(tag) {
+            removePendingTag(tag)
+        } else {
+            stageBatchTag(tag)
+        }
+    }
+
+    private func removePendingTag(_ tag: String) {
+        guard let idx = pendingTags.firstIndex(of: tag) else { return }
+        pendingTags.remove(at: idx)
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    private func applyPendingTags() {
+        guard !pendingTags.isEmpty else { return }
+
+        for tag in pendingTags {
+            if TagColorStore.shared.colorIndices[tag] == nil {
+                TagColorStore.shared.colorIndices[tag] = TagColorStore.hashIndex(for: tag)
+            }
+        }
+
+        for patient in patients {
+            for tag in pendingTags where !patient.tags.contains(tag) {
+                patient.tags.append(tag)
+            }
+        }
+
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        onComplete()
+        dismiss()
     }
 }

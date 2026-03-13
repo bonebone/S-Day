@@ -15,6 +15,11 @@ struct PreOpView: View {
     @State private var showBatchDatePicker = false
     @State private var showBatchTagSheet = false
     @State private var batchSurgeryDate: Date = Date()
+    @State private var selectedPatientForDate: Patient?
+    @State private var selectedPatientForTag: Patient?
+    @State private var singlePatientSurgeryDate: Date = Date()
+    @State private var showingToast = false
+    @State private var toastMessage = ""
     
     // Group patients by their surgery date (ignoring time)
     var groupedPreOpPatients: [(key: Date?, value: [Patient])] {
@@ -168,6 +173,13 @@ struct PreOpView: View {
                                                        isSelectionMode = false
                                                        selectedPatients.removeAll()
                                                    }
+                                               },
+                                               onShowDatePicker: {
+                                                   singlePatientSurgeryDate = patient.surgeryDate ?? Date()
+                                                   selectedPatientForDate = patient
+                                               },
+                                               onShowTagSheet: {
+                                                   selectedPatientForTag = patient
                                                })
                                         .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                                 }
@@ -204,6 +216,32 @@ struct PreOpView: View {
             }
             } // ScrollViewReader
             .toolbar(.hidden, for: .navigationBar)
+            .overlay(
+                VStack {
+                    if showingToast {
+                        HStack(spacing: 12) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                                .font(.title3)
+                            Text(toastMessage)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(.primary)
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .background(
+                            Capsule()
+                                .fill(.regularMaterial)
+                                .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
+                        )
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .padding(.top, 16)
+                    }
+                    Spacer()
+                }
+                .animation(.spring(response: 0.4, dampingFraction: 0.7), value: showingToast)
+            )
             .safeAreaInset(edge: .bottom) {
                 if isSelectionMode {
                     VStack(spacing: 0) {
@@ -246,20 +284,17 @@ struct PreOpView: View {
                             Button {
                                 guard !selectedPatients.isEmpty else { return }
                                 let selected = patients.filter { selectedPatients.contains($0.id) }
-                                let text = selected.map { p -> String in
-                                    let tagsText = p.tags.map { "#\($0)" }.joined(separator: " ")
-                                    return tagsText.isEmpty ? p.rawInput : "\(p.rawInput) \(tagsText)"
-                                }.joined(separator: "\n")
+                                let text = exportText(for: selected, sortDatesDescending: false, titleStyle: .preOp)
                                 UIPasteboard.general.string = text
-                                // Quick haptic
-                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                                // Flash mode to let user know it's copied
+                                let generator = UINotificationFeedbackGenerator()
+                                generator.notificationOccurred(.success)
+                                showToast("已复制到剪贴板")
                                 withAnimation {
                                     isSelectionMode = false
                                     selectedPatients.removeAll()
                                 }
                             } label: {
-                                Image(systemName: "doc.on.clipboard").font(.title2)
+                                Image(systemName: "square.and.arrow.up").font(.title2)
                                     .frame(maxWidth: .infinity)
                             }
                             .disabled(selectedPatients.isEmpty)
@@ -312,6 +347,43 @@ struct PreOpView: View {
                     withAnimation { isSelectionMode = false; selectedPatients.removeAll() }
                 }
             }
+            .sheet(item: $selectedPatientForDate) { patient in
+                NavigationStack {
+                    Form {
+                        Section {
+                            DatePicker("手术日期", selection: $singlePatientSurgeryDate, displayedComponents: .date)
+                                .datePickerStyle(.graphical)
+                                .environment(\.calendar, Calendar.autoupdatingCurrent)
+                                .environment(\.locale, Locale.autoupdatingCurrent)
+                        }
+
+                        if patient.surgeryDate != nil {
+                            Section {
+                                Button(role: .destructive) {
+                                    movePatientsToEndOfSurgeryGroup([patient], surgeryDate: nil, allPatients: patients)
+                                    selectedPatientForDate = nil
+                                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                } label: {
+                                    HStack {
+                                        Spacer()
+                                        Text("清除手术日期")
+                                        Spacer()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .navigationTitle("设置手术日")
+                    .navigationBarItems(trailing: Button("完成") {
+                        movePatientsToEndOfSurgeryGroup([patient], surgeryDate: singlePatientSurgeryDate, allPatients: patients)
+                        selectedPatientForDate = nil
+                    })
+                }
+                .presentationDetents(patient.surgeryDate != nil ? [.fraction(0.75), .large] : [.fraction(0.6)])
+            }
+            .sheet(item: $selectedPatientForTag) { patient in
+                TagSheetView(patient: patient, existingAllTags: existingTags())
+            }
         }
     }
     
@@ -327,6 +399,14 @@ struct PreOpView: View {
         
         let impactMed = UIImpactFeedbackGenerator(style: .light)
         impactMed.impactOccurred()
+    }
+
+    private func showToast(_ message: String) {
+        toastMessage = message
+        withAnimation { showingToast = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+            withAnimation { showingToast = false }
+        }
     }
     
     private func deletePatients(in group: [Patient], offsets: IndexSet) {
@@ -361,4 +441,3 @@ struct PreOpView: View {
         }
     }
     }
-
