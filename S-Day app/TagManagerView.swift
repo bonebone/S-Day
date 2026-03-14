@@ -5,7 +5,6 @@ import SwiftData
 
 struct TagManagerView: View {
     @Query private var patients: [Patient]
-    @Environment(\.modelContext) private var modelContext
     @ObservedObject private var colorStore = TagColorStore.shared
 
     // Which tag's color picker is open
@@ -50,11 +49,9 @@ struct TagManagerView: View {
                         tag: tag,
                         patientCount: patients.filter { $0.tags.contains(tag) }.count,
                         onColorDotTap: { colorPickerTag = tag },
-                        onRename: { old, new in renameTag(from: old, to: new) }
+                        onRename: { old, new in renameTag(from: old, to: new) },
+                        onDelete: { deleteTag(tag) }
                     )
-                }
-                .onDelete { indexSet in
-                    for idx in indexSet { deleteTag(userTags[idx]) }
                 }
             }
         }
@@ -85,6 +82,7 @@ struct TagManagerView: View {
             colorStore.colorIndices[newName] = colorIdx
             colorStore.colorIndices.removeValue(forKey: oldName)
         }
+        colorStore.renameTagUsage(from: oldName, to: newName)
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
 }
@@ -128,6 +126,10 @@ struct BuiltinTagRow: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
+        .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+        .alignmentGuide(.listRowSeparatorTrailing) { dimensions in
+            dimensions.width
+        }
     }
 }
 
@@ -156,6 +158,10 @@ struct TagGhostRow: View {
         }
         .contentShape(Rectangle())
         .onTapGesture { isFocused = true }
+        .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+        .alignmentGuide(.listRowSeparatorTrailing) { dimensions in
+            dimensions.width
+        }
     }
 
     private func commit() {
@@ -176,6 +182,7 @@ struct TagManagerRow: View {
     let patientCount: Int
     var onColorDotTap: () -> Void
     var onRename: (String, String) -> Void
+    var onDelete: () -> Void
 
     @ObservedObject private var colorStore = TagColorStore.shared
     @State private var editText: String = ""
@@ -214,8 +221,17 @@ struct TagManagerRow: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
+        .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+        .alignmentGuide(.listRowSeparatorTrailing) { dimensions in
+            dimensions.width
+        }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            // Delete is handled by the parent List's .onDelete
+            Button(role: .destructive) {
+                onDelete()
+            } label: {
+                Label("删除", systemImage: "trash")
+                    .labelStyle(.iconOnly)
+            }
         }
     }
 

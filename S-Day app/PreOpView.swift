@@ -337,6 +337,7 @@ struct PreOpView: View {
                 BatchTagSheetView(patients: toUpdate, existingAllTags: existingTags()) {
                     withAnimation { isSelectionMode = false; selectedPatients.removeAll() }
                 }
+                .presentationDetents([.medium, .large])
             }
             .sheet(item: $selectedPatientForDate) { patient in
                 NavigationStack {
@@ -386,6 +387,7 @@ struct PreOpView: View {
         let minOrder = patients.min(by: { $0.order < $1.order })?.order ?? 0
         let newPatient = Patient(rawInput: trimmed, order: minOrder - 1)
         newPatient.tags = tags
+        registerTagsIfNeeded(tags)
         modelContext.insert(newPatient)
         
         let impactMed = UIImpactFeedbackGenerator(style: .light)

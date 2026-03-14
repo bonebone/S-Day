@@ -330,6 +330,7 @@ struct PostOpView: View {
                 BatchTagSheetView(patients: toUpdate, existingAllTags: existingTags()) {
                     withAnimation { isSelectionMode = false; selectedPatients.removeAll() }
                 }
+                .presentationDetents([.medium, .large])
             }
             .sheet(item: $selectedPatientForDate) { patient in
                 NavigationStack {

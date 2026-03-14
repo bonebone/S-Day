@@ -12,6 +12,7 @@ final class TagColorStore: ObservableObject {
     private static let builtinDefaults: [String: Int] = ["需追踪": 6, "收藏": 8]
 
     private let defaultsKey = "tagColorIndices"
+    private let recentUsageKey = "recentTagUsageTimestamps"
 
     @Published var colorIndices: [String: Int] = [:] {
         didSet {
@@ -23,6 +24,14 @@ final class TagColorStore: ObservableObject {
             }
             if let data = try? JSONEncoder().encode(colorIndices) {
                 UserDefaults.standard.set(data, forKey: defaultsKey)
+            }
+        }
+    }
+
+    @Published private(set) var recentUsageTimestamps: [String: TimeInterval] = [:] {
+        didSet {
+            if let data = try? JSONEncoder().encode(recentUsageTimestamps) {
+                UserDefaults.standard.set(data, forKey: recentUsageKey)
             }
         }
     }
@@ -52,6 +61,10 @@ final class TagColorStore: ObservableObject {
            let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
             colorIndices = decoded
         }
+        if let data = UserDefaults.standard.data(forKey: recentUsageKey),
+           let decoded = try? JSONDecoder().decode([String: TimeInterval].self, from: data) {
+            recentUsageTimestamps = decoded
+        }
         // Always ensure builtins exist
         for (tag, defaultIdx) in Self.builtinDefaults {
             if colorIndices[tag] == nil {
@@ -74,10 +87,27 @@ final class TagColorStore: ObservableObject {
         colorIndices[name] = idx
     }
 
+    func markTagsUsed(_ tags: [String]) {
+        let now = Date().timeIntervalSince1970
+        for tag in tags {
+            recentUsageTimestamps[tag] = now
+        }
+    }
+
+    func recentUsageTimestamp(for name: String) -> TimeInterval? {
+        recentUsageTimestamps[name]
+    }
+
     /// Safe delete: does nothing for builtin tags.
     func removeTag(_ name: String) {
         guard !isBuiltin(name) else { return }
         colorIndices.removeValue(forKey: name)
+        recentUsageTimestamps.removeValue(forKey: name)
+    }
+
+    func renameTagUsage(from oldName: String, to newName: String) {
+        guard let timestamp = recentUsageTimestamps.removeValue(forKey: oldName) else { return }
+        recentUsageTimestamps[newName] = timestamp
     }
 
     static func hashIndex(for name: String) -> Int {

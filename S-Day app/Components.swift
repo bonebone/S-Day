@@ -4,6 +4,7 @@ import SwiftData
 struct PatientRow: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var patient: Patient
+    private let rowVerticalPadding: CGFloat = 8
     
     // Optional Selection support
     var isSelectionMode: Bool = false
@@ -14,7 +15,7 @@ struct PatientRow: View {
     var onShowTagSheet: (() -> Void)? = nil
     
     var body: some View {
-        HStack(spacing: isSelectionMode ? 8 : 0) {
+        HStack(alignment: .center, spacing: isSelectionMode ? 8 : 0) {
             if isSelectionMode {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .foregroundColor(isSelected ? .blue : .gray)
@@ -33,6 +34,7 @@ struct PatientRow: View {
             
             Spacer()
         }
+        .padding(.vertical, rowVerticalPadding)
         .contentShape(Rectangle())
         .onTapGesture {
             if isSelectionMode {
@@ -87,9 +89,10 @@ struct GhostPatientRow: View {
     var onCommit: (String, [String]) -> Void
     @State private var input: String = ""
     @State private var tags: [String] = []
+    private let rowVerticalPadding: CGFloat = 8
     
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(alignment: .center, spacing: 8) {
             Image(systemName: "plus")
                 .foregroundColor(.gray)
                 .font(.body)
@@ -105,6 +108,7 @@ struct GhostPatientRow: View {
                 }
             )
         }
+        .padding(.vertical, rowVerticalPadding)
     }
     
     private func submit() {
@@ -123,6 +127,7 @@ struct TagSheetView: View {
     @Environment(\.dismiss) var dismiss
     var existingAllTags: [String]
     @State private var newTag: String = ""
+    @State private var draftTags: [String] = []
     
     var existingTags: [String] {
         existingAllTags
@@ -132,14 +137,14 @@ struct TagSheetView: View {
         NavigationStack {
             Form {
                 Section(header: Text("已选标签")) {
-                    if patient.tags.isEmpty {
+                    if draftTags.isEmpty {
                         Text("无").foregroundColor(.secondary)
                     } else {
                         FlowLayout(spacing: 8) {
-                            ForEach(patient.tags, id: \.self) { tag in
+                            ForEach(draftTags, id: \.self) { tag in
                                 Button(action: {
-                                    if let idx = patient.tags.firstIndex(of: tag) {
-                                        patient.tags.remove(at: idx)
+                                    if let idx = draftTags.firstIndex(of: tag) {
+                                        draftTags.remove(at: idx)
                                         let impact = UIImpactFeedbackGenerator(style: .medium)
                                         impact.impactOccurred()
                                     }
@@ -176,7 +181,7 @@ struct TagSheetView: View {
                         .disabled(newTag.trimmingCharacters(in: .whitespaces).isEmpty)
                     }
                     
-                    let availableTags = existingTags.filter { !patient.tags.contains($0) }
+                    let availableTags = existingTags.filter { !draftTags.contains($0) }
                     if !availableTags.isEmpty {
                         FlowLayout(spacing: 8) {
                             ForEach(availableTags, id: \.self) { tag in
@@ -204,22 +209,30 @@ struct TagSheetView: View {
             }
             .navigationTitle("标签管理")
             .navigationBarTitleDisplayMode(.inline)
-            .navigationBarItems(trailing: Button("完成") { dismiss() })
+            .navigationBarItems(trailing: Button("完成") {
+                applyChanges()
+            })
+        }
+        .onAppear {
+            draftTags = patient.tags
         }
         .presentationDetents([.medium, .large])
     }
     
     private func addTag(_ tag: String) {
         let trimmed = tag.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty && !patient.tags.contains(trimmed) {
-            // Register in TagColorStore so it appears system-wide
-            if TagColorStore.shared.colorIndices[trimmed] == nil {
-                TagColorStore.shared.colorIndices[trimmed] = TagColorStore.hashIndex(for: trimmed)
-            }
-            patient.tags.append(trimmed)
+        if !trimmed.isEmpty && !draftTags.contains(trimmed) {
+            draftTags.append(trimmed)
             newTag = ""
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         }
+    }
+
+    private func applyChanges() {
+        registerTagsIfNeeded(draftTags)
+        patient.tags = draftTags
+        markTagsUsed(draftTags)
+        dismiss()
     }
 }
 
@@ -243,7 +256,56 @@ extension Color {
 /// Single source of truth for all tags: reads from TagColorStore.
 /// Any tag added to a patient is also registered there, so this covers everything.
 func existingTags() -> [String] {
-    Array(TagColorStore.shared.colorIndices.keys).sorted()
+    orderedSelectableTags(Array(TagColorStore.shared.colorIndices.keys))
+}
+
+func registerTagsIfNeeded(_ tags: [String]) {
+    for tag in tags {
+        guard TagColorStore.shared.colorIndices[tag] == nil else { continue }
+        TagColorStore.shared.colorIndices[tag] = TagColorStore.hashIndex(for: tag)
+    }
+}
+
+func markTagsUsed(_ tags: [String]) {
+    TagColorStore.shared.markTagsUsed(tags)
+}
+
+func orderedSelectableTags(_ tags: [String]) -> [String] {
+    let store = TagColorStore.shared
+    let builtinOrder = Dictionary(uniqueKeysWithValues: TagColorStore.builtinTags.enumerated().map { ($0.element, $0.offset) })
+
+    return Array(Set(tags)).sorted { lhs, rhs in
+        let lhsBuiltin = store.isBuiltin(lhs)
+        let rhsBuiltin = store.isBuiltin(rhs)
+        if lhsBuiltin != rhsBuiltin {
+            return lhsBuiltin && !rhsBuiltin
+        }
+        if lhsBuiltin, rhsBuiltin {
+            return (builtinOrder[lhs] ?? .max) < (builtinOrder[rhs] ?? .max)
+        }
+
+        let lhsRecent = store.recentUsageTimestamp(for: lhs) ?? 0
+        let rhsRecent = store.recentUsageTimestamp(for: rhs) ?? 0
+        if lhsRecent != rhsRecent {
+            return lhsRecent > rhsRecent
+        }
+
+        return lhs.localizedStandardCompare(rhs) == .orderedAscending
+    }
+}
+
+func orderedSuggestedTags(allTags: [String], excluding selectedTags: [String], query: String) -> [String] {
+    let filteredTags = orderedSelectableTags(allTags).filter { !selectedTags.contains($0) }
+    guard !query.isEmpty else { return filteredTags }
+
+    let prefixMatches = filteredTags.filter {
+        $0.range(of: query, options: [.caseInsensitive, .anchored]) != nil
+    }
+    let containsMatches = filteredTags.filter {
+        $0.range(of: query, options: [.caseInsensitive, .anchored]) == nil &&
+        $0.localizedCaseInsensitiveContains(query)
+    }
+    return prefixMatches + containsMatches
 }
 
 // MARK: - TagTokenField
@@ -278,11 +340,10 @@ struct TagTokenField: View {
                 onTagExtracted: { tag in
                     // Register in TagColorStore if new — this is how patient-side tags
                     // become "system tags" visible in the tag manager.
-                    if TagColorStore.shared.colorIndices[tag] == nil {
-                        TagColorStore.shared.colorIndices[tag] = TagColorStore.hashIndex(for: tag)
-                    }
+                    registerTagsIfNeeded([tag])
                     if !tags.contains(tag) {
                         tags.append(tag)
+                        markTagsUsed([tag])
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     }
                 },
@@ -292,7 +353,7 @@ struct TagTokenField: View {
                     onSubmit?()
                 }
             )
-            .frame(maxWidth: .infinity, minHeight: 22)
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             // Confirmed tag capsules - appear below the text in order
             if !tags.isEmpty {
@@ -327,9 +388,7 @@ struct TagTokenField: View {
 
             // Autocomplete suggestion bar — appears when #typing
             if isFocused, let query = activeTagQuery(for: text) {
-                let suggestions = allTags
-                    .filter { !tags.contains($0) }
-                    .filter { query.isEmpty || $0.localizedCaseInsensitiveContains(query) }
+                let suggestions = orderedSuggestedTags(allTags: allTags, excluding: tags, query: query)
                 if !suggestions.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 6) {
@@ -343,6 +402,7 @@ struct TagTokenField: View {
                                     }
                                     if !tags.contains(sug) {
                                         tags.append(sug)
+                                        markTagsUsed([sug])
                                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                                     }
                                 } label: {
@@ -573,7 +633,9 @@ func extractAndStripTags(text: inout String, tags: inout [String]) {
     }
 
     if !newTags.isEmpty {
+        registerTagsIfNeeded(newTags)
         tags.append(contentsOf: newTags)
+        markTagsUsed(newTags)
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
 
@@ -668,6 +730,10 @@ struct BatchTagSheetView: View {
     @State private var newTag: String = ""
     @State private var pendingTags: [String] = []
     
+    var selectableTags: [String] {
+        orderedSelectableTags(existingAllTags)
+    }
+    
     var body: some View {
         NavigationStack {
             Form {
@@ -710,9 +776,9 @@ struct BatchTagSheetView: View {
                         .disabled(newTag.trimmingCharacters(in: .whitespaces).isEmpty)
                     }
                     
-                    if !existingAllTags.isEmpty {
+                    if !selectableTags.isEmpty {
                         FlowLayout(spacing: 8) {
-                            ForEach(existingAllTags, id: \.self) { tag in
+                            ForEach(selectableTags, id: \.self) { tag in
                                 Button(action: {
                                     togglePendingTag(tag)
                                 }) {
@@ -757,7 +823,6 @@ struct BatchTagSheetView: View {
         }
 
         pendingTags.append(trimmed)
-        pendingTags.sort()
         newTag = ""
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
@@ -780,9 +845,7 @@ struct BatchTagSheetView: View {
         guard !pendingTags.isEmpty else { return }
 
         for tag in pendingTags {
-            if TagColorStore.shared.colorIndices[tag] == nil {
-                TagColorStore.shared.colorIndices[tag] = TagColorStore.hashIndex(for: tag)
-            }
+            registerTagsIfNeeded([tag])
         }
 
         for patient in patients {
@@ -791,6 +854,7 @@ struct BatchTagSheetView: View {
             }
         }
 
+        markTagsUsed(pendingTags)
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         onComplete()
         dismiss()
