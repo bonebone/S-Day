@@ -443,6 +443,20 @@ struct BackspaceDetectingTextField: UIViewRepresentable {
         // Synchronously intercept space key — this is where tag-to-capsule conversion happens
         func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange,
                        replacementString string: String) -> Bool {
+            if string == "\n" {
+                parent.onSubmit()
+                guard !parent.keepFocusOnSubmit else {
+                    DispatchQueue.main.async {
+                        textField.becomeFirstResponder()
+                        let endPos = textField.endOfDocument
+                        textField.selectedTextRange = textField.textRange(from: endPos, to: endPos)
+                    }
+                    return false
+                }
+                textField.resignFirstResponder()
+                return false
+            }
+
             guard string == " " else { return true }
             let currentText = textField.text ?? ""
             // Look for a completed #tag at the END of the current text
