@@ -168,12 +168,6 @@ struct PreOpView: View {
                                                        selectedPatients.insert(patient.id)
                                                    }
                                                },
-                                               onCancelSelection: {
-                                                   withAnimation {
-                                                       isSelectionMode = false
-                                                       selectedPatients.removeAll()
-                                                   }
-                                               },
                                                onShowDatePicker: {
                                                    singlePatientSurgeryDate = patient.surgeryDate ?? Date()
                                                    selectedPatientForDate = patient
@@ -186,9 +180,6 @@ struct PreOpView: View {
                                 // Native move within the SAME section
                                 .onMove { source, destination in
                                     movePatients(in: group.value, from: source, to: destination)
-                                }
-                                .onDelete { offsets in
-                                    deletePatients(in: group.value, offsets: offsets)
                                 }
                             }
                         }
@@ -406,12 +397,6 @@ struct PreOpView: View {
         withAnimation { showingToast = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
             withAnimation { showingToast = false }
-        }
-    }
-    
-    private func deletePatients(in group: [Patient], offsets: IndexSet) {
-        for index in offsets {
-            modelContext.delete(group[index])
         }
     }
     

@@ -10,12 +10,8 @@ struct PatientRow: View {
     var isSelected: Bool = false
     var toggleSelection: (() -> Void)? = nil
     var onSwipeSelect: (() -> Void)? = nil
-    var onCancelSelection: (() -> Void)? = nil
     var onShowDatePicker: (() -> Void)? = nil
     var onShowTagSheet: (() -> Void)? = nil
-    
-    // Track whether trailing swipe actions are currently revealed
-    @State private var swipeActionsOpen = false
     
     var body: some View {
         HStack(spacing: isSelectionMode ? 8 : 0) {
@@ -43,8 +39,8 @@ struct PatientRow: View {
                 toggleSelection?()
             }
         }
-        .if(!isSelectionMode) { view in
-            view.swipeActions(edge: .trailing, allowsFullSwipe: false) {
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            if !isSelectionMode {
                 Button(role: .destructive) {
                     modelContext.delete(patient)
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
@@ -52,7 +48,7 @@ struct PatientRow: View {
                     Label("删除", systemImage: "trash")
                         .labelStyle(.iconOnly)
                 }
-                
+
                 Button {
                     onShowDatePicker?()
                 } label: {
@@ -60,7 +56,7 @@ struct PatientRow: View {
                         .labelStyle(.iconOnly)
                 }
                 .tint(.blue)
-                
+
                 Button {
                     onShowTagSheet?()
                 } label: {
@@ -71,36 +67,19 @@ struct PatientRow: View {
             }
         }
         // Row-level swipe gesture: right-swipe enters selection and pre-selects this row
-        // Left-swipe in normal mode tracks that swipeActions were opened
         .simultaneousGesture(
             DragGesture(minimumDistance: 30, coordinateSpace: .local)
                 .onEnded { value in
                     let isHorizontal = abs(value.translation.width) > abs(value.translation.height) * 1.5
                     guard isHorizontal else { return }
                     if value.translation.width > 40 {
-                        if swipeActionsOpen {
-                            swipeActionsOpen = false
-                        } else if !isSelectionMode, let onSwipeSelect = onSwipeSelect {
+                        if !isSelectionMode, let onSwipeSelect = onSwipeSelect {
                             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                             onSwipeSelect()
                         }
-                    } else if value.translation.width < -40 && !isSelectionMode {
-                        swipeActionsOpen = true
                     }
                 }
         )
-    }
-}
-
-// MARK: - Conditional modifier helper
-extension View {
-    @ViewBuilder
-    func `if`<Content: View>(_ condition: Bool, transform: (Self) -> Content) -> some View {
-        if condition {
-            transform(self)
-        } else {
-            self
-        }
     }
 }
 

@@ -161,12 +161,6 @@ struct PostOpView: View {
                                                        selectedPatients.insert(patient.id)
                                                    }
                                                },
-                                               onCancelSelection: {
-                                                   withAnimation {
-                                                       isSelectionMode = false
-                                                       selectedPatients.removeAll()
-                                                   }
-                                               },
                                                onShowDatePicker: {
                                                    singlePatientSurgeryDate = patient.surgeryDate ?? Date()
                                                    selectedPatientForDate = patient
@@ -175,9 +169,6 @@ struct PostOpView: View {
                                                    selectedPatientForTag = patient
                                                })
                                         .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                                }
-                                .onDelete { offsets in
-                                    deletePatients(in: group.value, offsets: offsets)
                                 }
                                 .onMove { source, destination in
                                     movePatients(in: group.value, from: source, to: destination)
@@ -380,14 +371,6 @@ struct PostOpView: View {
         }
     }
     
-    private func deletePatients(in group: [Patient], offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(group[index])
-            }
-        }
-    }
-
     private func showToast(_ message: String) {
         toastMessage = message
         withAnimation { showingToast = true }
