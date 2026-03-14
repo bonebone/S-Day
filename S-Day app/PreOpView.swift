@@ -7,6 +7,7 @@ struct PreOpView: View {
     @Query private var patients: [Patient]
     private let sectionSelectionIndicatorSize: CGFloat = 20
     private let sectionSelectionIndicatorSpacing: CGFloat = 4
+    private let listInsertionAnimation = Animation.snappy(duration: 0.32, extraBounce: 0.02)
     
     @State private var collapsedDates: Set<Date?> = []
     @State private var searchText = ""
@@ -45,6 +46,13 @@ struct PreOpView: View {
             return kv1.key! < kv2.key!
         }.map { (key, value) in
             (key: key, value: value.sorted { $0.order < $1.order })
+        }
+    }
+
+    private var preOpListAnimationKey: [String] {
+        groupedPreOpPatients.flatMap { group in
+            let groupKey = group.key?.formatted(date: .abbreviated, time: .omitted) ?? "nil"
+            return ["section:\(groupKey)"] + group.value.map { "patient:\($0.id.uuidString)" }
         }
     }
     
@@ -200,6 +208,7 @@ struct PreOpView: View {
                 .listStyle(.plain)
                 .listSectionSpacing(0)
                 .contentMargins(.top, 0, for: .scrollContent)
+                .animation(listInsertionAnimation, value: preOpListAnimationKey)
                 // Left swipe in selection mode exits it
                 .simultaneousGesture(
                     DragGesture(minimumDistance: 30, coordinateSpace: .local)
@@ -399,7 +408,9 @@ struct PreOpView: View {
         let newPatient = Patient(rawInput: trimmed, order: minOrder - 1)
         newPatient.tags = tags
         registerTagsIfNeeded(tags)
-        modelContext.insert(newPatient)
+        withAnimation(listInsertionAnimation) {
+            modelContext.insert(newPatient)
+        }
         
         let impactMed = UIImpactFeedbackGenerator(style: .light)
         impactMed.impactOccurred()
