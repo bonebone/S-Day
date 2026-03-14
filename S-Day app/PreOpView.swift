@@ -5,6 +5,8 @@ import UniformTypeIdentifiers
 struct PreOpView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var patients: [Patient]
+    private let sectionSelectionIndicatorSize: CGFloat = 20
+    private let sectionSelectionIndicatorSpacing: CGFloat = 4
     
     @State private var collapsedDates: Set<Date?> = []
     @State private var searchText = ""
@@ -50,85 +52,77 @@ struct PreOpView: View {
         NavigationStack {
             ScrollViewReader { proxy in
                 VStack(spacing: 0) {
-                    // Custom Large Title for maximum space control
-                HStack(alignment: .center) {
-                    if isSelectionMode {
-                        Button("取消") {
-                            withAnimation {
-                                isSelectionMode = false
-                                selectedPatients.removeAll()
-                            }
+                    ZStack {
+                        HStack(alignment: .center) {
+                            Text("术前")
+                                .font(.largeTitle)
+                                .bold()
+                                .layoutPriority(1)
+                            
+                            Spacer(minLength: 16)
+                            
+                            NativeSearchBar(text: $searchText, placeholder: "搜索术前...")
                         }
-                        Spacer()
-                        Text("已选择 \(selectedPatients.count) 人")
-                            .font(.headline)
-                        Spacer()
-                        Button("全选") {
-                            withAnimation {
-                                let allIds = groupedPreOpPatients.flatMap { $0.value }.map { $0.id }
-                                if selectedPatients.count == allIds.count {
+                        .opacity(isSelectionMode ? 0 : 1)
+                        .allowsHitTesting(!isSelectionMode)
+
+                        HStack(alignment: .center) {
+                            Button("取消") {
+                                withAnimation {
+                                    isSelectionMode = false
                                     selectedPatients.removeAll()
-                                } else {
-                                    selectedPatients = Set(allIds)
+                                }
+                            }
+                            Spacer()
+                            Text("已选择 \(selectedPatients.count) 人")
+                                .font(.headline)
+                            Spacer()
+                            Button("全选") {
+                                withAnimation {
+                                    let allIds = groupedPreOpPatients.flatMap { $0.value }.map { $0.id }
+                                    if selectedPatients.count == allIds.count {
+                                        selectedPatients.removeAll()
+                                    } else {
+                                        selectedPatients = Set(allIds)
+                                    }
                                 }
                             }
                         }
-                    } else {
-                        Text("术前")
-                            .font(.largeTitle)
-                            .bold()
-                            .layoutPriority(1)
-                        
-                        Spacer(minLength: 16)
-                        
-                        NativeSearchBar(text: $searchText, placeholder: "搜索术前...")
+                        .opacity(isSelectionMode ? 1 : 0)
+                        .allowsHitTesting(isSelectionMode)
                     }
-                }
-                .padding(.horizontal)
-                .padding(.top, 0)
-                .padding(.bottom, 0)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    withAnimation {
-                        proxy.scrollTo("topPosition", anchor: .top)
+                    .padding(.horizontal)
+                    .padding(.top, 0)
+                    .padding(.bottom, 0)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        withAnimation {
+                            proxy.scrollTo("topPosition", anchor: .top)
+                        }
                     }
-                }
                 
                 List {
                     Color.clear.frame(height: 0).listRowInsets(EdgeInsets()).listRowSeparator(.hidden).id("topPosition")
 
-                    if !isSelectionMode {
-                        // Always place the ghost row at the very top conceptually creating a new unassigned patient
-                        GhostPatientRow { newName, newTags in
-                            addPatient(name: newName, tags: newTags)
-                        }
-                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 4, trailing: 16))
+                    // Keep the row height in selection mode so the first patient does not shift upward.
+                    GhostPatientRow { newName, newTags in
+                        addPatient(name: newName, tags: newTags)
                     }
+                    .opacity(isSelectionMode ? 0 : 1)
+                    .allowsHitTesting(!isSelectionMode)
+                    .accessibilityHidden(isSelectionMode)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 4, trailing: 16))
                     
                     ForEach(groupedPreOpPatients, id: \.key) { group in
+                        let groupIds = group.value.map { $0.id }
+                        let isAllSelected = !groupIds.isEmpty && groupIds.allSatisfy { selectedPatients.contains($0) }
                         Section(header: 
                             HStack {
-                                if isSelectionMode {
-                                    let groupIds = group.value.map { $0.id }
-                                    let isAllSelected = !groupIds.isEmpty && groupIds.allSatisfy { selectedPatients.contains($0) }
-                                    Image(systemName: isAllSelected ? "checkmark.circle.fill" : "circle")
-                                        .foregroundColor(isAllSelected ? .blue : .gray)
-                                        .font(.title3)
-                                        .onTapGesture {
-                                            withAnimation {
-                                                if isAllSelected {
-                                                    selectedPatients.subtract(groupIds)
-                                                } else {
-                                                    selectedPatients.formUnion(groupIds)
-                                                }
-                                            }
-                                        }
-                                        .padding(.trailing, 4)
-                                }
                                 Text(formatPreOpDate(group.key))
                                     .font(.subheadline)
                                     .fontWeight(.medium)
                                     .foregroundColor(.secondary)
+                                    .padding(.leading, isSelectionMode ? sectionSelectionIndicatorSize + sectionSelectionIndicatorSpacing : 0)
                                 Spacer()
                                 Image(systemName: collapsedDates.contains(group.key) ? "chevron.right" : "chevron.down")
                                     .font(.caption)
@@ -136,6 +130,24 @@ struct PreOpView: View {
                             }
                             .padding(.vertical, 4)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .overlay(alignment: .leading) {
+                                Image(systemName: isAllSelected ? "checkmark.circle.fill" : "circle")
+                                    .foregroundColor(isAllSelected ? .blue : .gray)
+                                    .font(.system(size: sectionSelectionIndicatorSize))
+                                    .frame(width: sectionSelectionIndicatorSize, height: sectionSelectionIndicatorSize)
+                                    .opacity(isSelectionMode ? 1 : 0)
+                                    .allowsHitTesting(isSelectionMode)
+                                    .onTapGesture {
+                                        guard isSelectionMode else { return }
+                                        withAnimation {
+                                            if isAllSelected {
+                                                selectedPatients.subtract(groupIds)
+                                            } else {
+                                                selectedPatients.formUnion(groupIds)
+                                            }
+                                        }
+                                    }
+                            }
                             .contentShape(Rectangle())
                             .onTapGesture {
                                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -234,68 +246,67 @@ struct PreOpView: View {
                 .animation(.spring(response: 0.4, dampingFraction: 0.7), value: showingToast)
             )
             .safeAreaInset(edge: .bottom) {
-                if isSelectionMode {
-                    VStack(spacing: 0) {
-                        Divider()
-                        HStack(spacing: 0) {
-                            Button(role: .destructive) {
-                                guard !selectedPatients.isEmpty else { return }
-                                let toDelete = patients.filter { selectedPatients.contains($0.id) }
-                                for p in toDelete { modelContext.delete(p) }
-                                selectedPatients.removeAll()
-                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                                withAnimation {
-                                    isSelectionMode = false
-                                }
-                            } label: {
-                                Image(systemName: "trash").font(.title2)
-                                    .frame(maxWidth: .infinity)
+                VStack(spacing: 0) {
+                    Divider()
+                    HStack(spacing: 0) {
+                        Button(role: .destructive) {
+                            guard !selectedPatients.isEmpty else { return }
+                            let toDelete = patients.filter { selectedPatients.contains($0.id) }
+                            for p in toDelete { modelContext.delete(p) }
+                            selectedPatients.removeAll()
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            withAnimation {
+                                isSelectionMode = false
                             }
-                            .disabled(selectedPatients.isEmpty)
-                            
-                            Button {
-                                guard !selectedPatients.isEmpty else { return }
-                                batchSurgeryDate = Date()
-                                showBatchDatePicker = true
-                            } label: {
-                                Image(systemName: "calendar").font(.title2)
-                                    .frame(maxWidth: .infinity)
-                            }
-                            .disabled(selectedPatients.isEmpty)
-                            
-                            Button {
-                                guard !selectedPatients.isEmpty else { return }
-                                showBatchTagSheet = true
-                            } label: {
-                                Image(systemName: "tag").font(.title2)
-                                    .frame(maxWidth: .infinity)
-                            }
-                            .disabled(selectedPatients.isEmpty)
-                            
-                            Button {
-                                guard !selectedPatients.isEmpty else { return }
-                                let selected = patients.filter { selectedPatients.contains($0.id) }
-                                let text = exportText(for: selected, sortDatesDescending: false, titleStyle: .preOp)
-                                UIPasteboard.general.string = text
-                                let generator = UINotificationFeedbackGenerator()
-                                generator.notificationOccurred(.success)
-                                showToast("已复制到剪贴板")
-                                withAnimation {
-                                    isSelectionMode = false
-                                    selectedPatients.removeAll()
-                                }
-                            } label: {
-                                Image(systemName: "square.and.arrow.up").font(.title2)
-                                    .frame(maxWidth: .infinity)
-                            }
-                            .disabled(selectedPatients.isEmpty)
+                        } label: {
+                            Image(systemName: "trash").font(.title2)
+                                .frame(maxWidth: .infinity)
                         }
-                        .padding(.vertical, 12)
-                        .padding(.bottom, 8)
-                        .background(.regularMaterial)
+                        .disabled(selectedPatients.isEmpty || !isSelectionMode)
+                        
+                        Button {
+                            guard !selectedPatients.isEmpty else { return }
+                            batchSurgeryDate = Date()
+                            showBatchDatePicker = true
+                        } label: {
+                            Image(systemName: "calendar").font(.title2)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .disabled(selectedPatients.isEmpty || !isSelectionMode)
+                        
+                        Button {
+                            guard !selectedPatients.isEmpty else { return }
+                            showBatchTagSheet = true
+                        } label: {
+                            Image(systemName: "tag").font(.title2)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .disabled(selectedPatients.isEmpty || !isSelectionMode)
+                        
+                        Button {
+                            guard !selectedPatients.isEmpty else { return }
+                            let selected = patients.filter { selectedPatients.contains($0.id) }
+                            let text = exportText(for: selected, sortDatesDescending: false, titleStyle: .preOp)
+                            UIPasteboard.general.string = text
+                            let generator = UINotificationFeedbackGenerator()
+                            generator.notificationOccurred(.success)
+                            showToast("已复制到剪贴板")
+                            withAnimation {
+                                isSelectionMode = false
+                                selectedPatients.removeAll()
+                            }
+                        } label: {
+                            Image(systemName: "square.and.arrow.up").font(.title2)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .disabled(selectedPatients.isEmpty || !isSelectionMode)
                     }
-                    .transition(.move(edge: .bottom))
+                    .padding(.vertical, 12)
+                    .padding(.bottom, 8)
+                    .background(.regularMaterial)
                 }
+                .opacity(isSelectionMode ? 1 : 0)
+                .allowsHitTesting(isSelectionMode)
             }
             .sheet(isPresented: $showBatchDatePicker) {
                 NavigationStack {

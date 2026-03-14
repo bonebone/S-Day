@@ -5,6 +5,8 @@ struct PatientRow: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var patient: Patient
     private let rowVerticalPadding: CGFloat = 8
+    private let selectionIndicatorSize: CGFloat = 20
+    private let selectionIndicatorSpacing: CGFloat = 8
     
     // Optional Selection support
     var isSelectionMode: Bool = false
@@ -15,14 +17,7 @@ struct PatientRow: View {
     var onShowTagSheet: (() -> Void)? = nil
     
     var body: some View {
-        HStack(alignment: .center, spacing: isSelectionMode ? 8 : 0) {
-            if isSelectionMode {
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .foregroundColor(isSelected ? .blue : .gray)
-                    .font(.system(size: 20))
-                    .imageScale(.medium)
-            }
-            
+        HStack(spacing: 0) {
             TagTokenField(
                 text: $patient.rawInput,
                 tags: $patient.tags,
@@ -30,11 +25,20 @@ struct PatientRow: View {
                 placeholder: "输入新病人信息...",
                 autoFocusIfEmpty: true
             )
+            .padding(.leading, isSelectionMode ? selectionIndicatorSize + selectionIndicatorSpacing : 0)
             .disabled(isSelectionMode)
             
             Spacer()
         }
         .padding(.vertical, rowVerticalPadding)
+        .overlay(alignment: .leading) {
+            if isSelectionMode {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(isSelected ? .blue : .gray)
+                    .font(.system(size: selectionIndicatorSize))
+                    .frame(width: selectionIndicatorSize, height: selectionIndicatorSize)
+            }
+        }
         .contentShape(Rectangle())
         .onTapGesture {
             if isSelectionMode {
