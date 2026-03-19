@@ -39,8 +39,16 @@ struct TagManagerView: View {
             // ── User-created tags ──
             Section(header: Text("自定义标签")) {
                 // Ghost row for creating new tags
-                TagGhostRow(existingTags: allTags) { newName in
-                    colorStore.colorIndices[newName] = TagColorStore.hashIndex(for: newName)
+                TagGhostRow(
+                    existingTags: allTags,
+                    nextColorIndex: TagColorStore.assignmentColorIndex(
+                        forNthUserTag: colorStore.colorIndices.keys
+                            .filter { !colorStore.isBuiltin($0) }.count
+                    )
+                ) { newName in
+                    let userTagCount = colorStore.colorIndices.keys
+                        .filter { !colorStore.isBuiltin($0) }.count
+                    colorStore.colorIndices[newName] = TagColorStore.assignmentColorIndex(forNthUserTag: userTagCount)
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                 }
 
@@ -107,7 +115,7 @@ struct BuiltinTagRow: View {
                     .overlay(
                         Image(systemName: "pencil")
                             .font(.system(size: 8, weight: .bold))
-                            .foregroundColor(.white)
+                            .foregroundColor(Color.tagTextColor(for: tag))
                     )
             }
             .buttonStyle(.plain)
@@ -138,6 +146,7 @@ struct BuiltinTagRow: View {
 /// An always-visible placeholder row that lets the user inline-create a new tag.
 struct TagGhostRow: View {
     var existingTags: [String]
+    var nextColorIndex: Int
     var onCommit: (String) -> Void
 
     @State private var text = ""
@@ -146,7 +155,7 @@ struct TagGhostRow: View {
     var body: some View {
         HStack(spacing: 10) {
             Circle()
-                .fill(text.isEmpty ? Color.gray.opacity(0.3) : Color.tagColor(for: text))
+                .fill(text.isEmpty ? Color.gray.opacity(0.3) : TagColorStore.color(at: nextColorIndex))
                 .frame(width: 18, height: 18)
                 .animation(.easeInOut(duration: 0.2), value: text)
 
@@ -199,7 +208,7 @@ struct TagManagerRow: View {
                     .overlay(
                         Image(systemName: "pencil")
                             .font(.system(size: 8, weight: .bold))
-                            .foregroundColor(.white)
+                            .foregroundColor(Color.tagTextColor(for: tag))
                     )
             }
             .buttonStyle(.plain)
@@ -252,8 +261,6 @@ struct TagColorPickerSheet: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var colorStore = TagColorStore.shared
 
-    let columns = Array(repeating: GridItem(.flexible()), count: 6)
-
     var body: some View {
         VStack(spacing: 20) {
             HStack {
@@ -268,35 +275,56 @@ struct TagColorPickerSheet: View {
             // Live preview capsule
             Text(tagName)
                 .font(.caption)
-                .foregroundColor(.white)
+                .foregroundColor(Color.tagTextColor(for: tagName))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(Color.tagColor(for: tagName))
                 .cornerRadius(12)
                 .animation(.easeInOut(duration: 0.2), value: colorStore.colorIndices[tagName])
 
-            LazyVGrid(columns: columns, spacing: 16) {
-                ForEach(0..<TagColorStore.presetHues.count, id: \.self) { idx in
-                    let color = TagColorStore.color(at: idx)
-                    let isSelected = colorStore.colorIndexFor(tagName) == idx
-                    Button {
-                        colorStore.setColorIndex(idx, for: tagName)
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    } label: {
-                        Circle()
-                            .fill(color)
-                            .frame(width: 42, height: 42)
-                            .overlay(Circle().strokeBorder(Color.white, lineWidth: isSelected ? 3 : 0))
-                            .overlay(
-                                Circle().strokeBorder(color, lineWidth: isSelected ? 5 : 0).padding(-4)
-                            )
-                            .scaleEffect(isSelected ? 1.12 : 1.0)
-                            .animation(.spring(response: 0.25), value: isSelected)
+            GeometryReader { geometry in
+                let horizontalPadding: CGFloat = 40
+                let columnSpacing: CGFloat = 6
+                let totalSpacing = columnSpacing * CGFloat(TagColorStore.presetGroups.count - 1)
+                let availableWidth = geometry.size.width - horizontalPadding - totalSpacing
+                let columnWidth = max(28, floor(availableWidth / CGFloat(TagColorStore.presetGroups.count)))
+
+                HStack(alignment: .top, spacing: columnSpacing) {
+                    ForEach(Array(TagColorStore.presetGroups.enumerated()), id: \.offset) { groupIndex, group in
+                        VStack(spacing: 8) {
+                            ForEach(group.colors) { preset in
+                                let colorIndex = groupIndex * group.colors.count + (preset.level - 1)
+                                let color = TagColorStore.color(at: colorIndex)
+                                let isSelected = colorStore.colorIndexFor(tagName) == colorIndex
+
+                                 RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                     .fill(color)
+                                     .frame(width: columnWidth, height: columnWidth)
+                                     .overlay(
+                                         RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                             .inset(by: -2)
+                                             .stroke(color.opacity(isSelected ? 0.85 : 0), lineWidth: 1)
+                                     )
+                                     .overlay(
+                                         Text("\(preset.level)")
+                                             .font(.system(size: 11, weight: .semibold))
+                                             .foregroundColor(TagColorStore.textColor(at: colorIndex))
+                                     )
+                                     .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                     .onTapGesture {
+                                         colorStore.setColorIndex(colorIndex, for: tagName)
+                                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                     }
+                            }
+                        }
+                        .frame(width: columnWidth)
                     }
-                    .buttonStyle(.plain)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 4)
             }
-            .padding(.horizontal, 20)
+            .frame(height: 220)
 
             Button("重置为自动颜色") {
                 colorStore.colorIndices.removeValue(forKey: tagName)

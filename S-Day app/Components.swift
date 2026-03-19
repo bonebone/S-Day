@@ -189,7 +189,7 @@ struct TagSheetView: View {
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 6)
                                     .background(Color.tagColor(for: tag).opacity(0.8))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(Color.tagTextColor(for: tag))
                                     .cornerRadius(12)
                                 }
                                 .buttonStyle(.plain)
@@ -228,7 +228,7 @@ struct TagSheetView: View {
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 6)
                                     .background(Color.tagColor(for: tag).opacity(0.8))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(Color.tagTextColor(for: tag))
                                     .cornerRadius(12)
                                 }
                                 .buttonStyle(.plain)
@@ -281,6 +281,33 @@ extension Color {
     static func tagColor(for name: String) -> Color {
         let idx = TagColorStore.shared.colorIndexFor(name)
         return TagColorStore.color(at: idx)
+    }
+
+    static func tagTextColor(for name: String) -> Color {
+        let idx = TagColorStore.shared.colorIndexFor(name)
+        return TagColorStore.textColor(at: idx)
+    }
+
+    init(hex: String) {
+        let sanitized = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var value: UInt64 = 0
+        Scanner(string: sanitized).scanHexInt64(&value)
+
+        let red, green, blue, alpha: UInt64
+        switch sanitized.count {
+        case 8:
+            (alpha, red, green, blue) = ((value >> 24) & 0xFF, (value >> 16) & 0xFF, (value >> 8) & 0xFF, value & 0xFF)
+        default:
+            (alpha, red, green, blue) = (0xFF, (value >> 16) & 0xFF, (value >> 8) & 0xFF, value & 0xFF)
+        }
+
+        self.init(
+            .sRGB,
+            red: Double(red) / 255,
+            green: Double(green) / 255,
+            blue: Double(blue) / 255,
+            opacity: Double(alpha) / 255
+        )
     }
 }
 
@@ -399,7 +426,7 @@ struct TagTokenField: View {
                                     .font(.system(size: 8, weight: .bold))
                             }
                         }
-                        .foregroundColor(.white)
+                        .foregroundColor(Color.tagTextColor(for: tag))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 5)
                         .background(Color.tagColor(for: tag))
@@ -784,7 +811,7 @@ struct BatchTagSheetView: View {
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 6)
                                     .background(Color.tagColor(for: tag).opacity(0.8))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(Color.tagTextColor(for: tag))
                                     .cornerRadius(12)
                                 }
                                 .buttonStyle(.plain)
@@ -822,7 +849,7 @@ struct BatchTagSheetView: View {
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 6)
                                     .background(Color.tagColor(for: tag).opacity(pendingTags.contains(tag) ? 1.0 : 0.8))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(Color.tagTextColor(for: tag))
                                     .cornerRadius(12)
                                 }
                                 .buttonStyle(.plain)
