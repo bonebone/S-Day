@@ -24,6 +24,7 @@ struct SDayApp: App {
         WindowGroup {
             ContentView()
                 .preferredColorScheme(appearance.colorScheme)
+                .environment(\.locale, appDisplayLocale())
                 .environmentObject(navigationState)
                 .task {
                     // Bootstrap: ensure all tags already on patients exist in TagColorStore.
@@ -64,4 +65,8 @@ enum AppAppearance: String, CaseIterable, Identifiable, Codable {
             return .dark
         }
     }
+}
+
+func appDisplayLocale() -> Locale {
+    Locale(identifier: Locale.preferredLanguages.first ?? Locale.autoupdatingCurrent.identifier)
 }

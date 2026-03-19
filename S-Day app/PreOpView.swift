@@ -230,6 +230,14 @@ struct PreOpView: View {
                 .onAppear {
                     syncFromNavigationState(proxy: proxy)
                 }
+                .onChange(of: searchText) { newValue in
+                    if navigationState.preOpSearchText != newValue {
+                        navigationState.preOpSearchText = newValue
+                    }
+                    if !newValue.isEmpty, navigationState.preOpJumpTarget != nil {
+                        navigationState.preOpJumpTarget = nil
+                    }
+                }
                 .onChange(of: navigationState.preOpSearchText) { _ in
                     syncFromNavigationState(proxy: proxy)
                 }
@@ -334,7 +342,7 @@ struct PreOpView: View {
                         DatePicker("手术日期", selection: $batchSurgeryDate, displayedComponents: .date)
                             .datePickerStyle(.graphical)
                             .environment(\.calendar, Calendar.autoupdatingCurrent)
-                            .environment(\.locale, Locale.autoupdatingCurrent)
+                            .environment(\.locale, appDisplayLocale())
                         
                         Section {
                             Button(role: .destructive) {
@@ -377,7 +385,7 @@ struct PreOpView: View {
                             DatePicker("手术日期", selection: $singlePatientSurgeryDate, displayedComponents: .date)
                                 .datePickerStyle(.graphical)
                                 .environment(\.calendar, Calendar.autoupdatingCurrent)
-                                .environment(\.locale, Locale.autoupdatingCurrent)
+                                .environment(\.locale, appDisplayLocale())
                         }
 
                         if patient.surgeryDate != nil {
@@ -430,6 +438,10 @@ struct PreOpView: View {
             withAnimation {
                 proxy.scrollTo(sectionScrollID(for: date), anchor: .top)
             }
+        }
+
+        if navigationState.preOpJumpTarget != nil {
+            navigationState.preOpJumpTarget = nil
         }
     }
 

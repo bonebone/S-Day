@@ -194,7 +194,7 @@ struct OverviewView: View {
                                             expandedSectionID = expandedSectionID == section.id ? nil : section.id
                                                 }
                                             },
-                                            onSelectPatient: open(patient:)
+                                            onSelectPatient: open(patient:from:)
                                         )
                                         .padding(.horizontal, 16)
                                     }
@@ -226,6 +226,29 @@ struct OverviewView: View {
                     .buttonStyle(.plain)
                     .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                 }
+            }
+        }
+    }
+
+    private func open(patient: Patient, from section: OverviewDataSection) {
+        let query = patient.parsedName?.isEmpty == false ? patient.parsedName! : patient.rawInput
+
+        switch section.id {
+        case "unscheduled":
+            navigationState.showPreOp(date: nil)
+        case "preop-tracking", "recent":
+            navigationState.showPreOp(searchText: query)
+        case "postop-tracking":
+            navigationState.showPostOp(searchText: query)
+        default:
+            if section.id.hasPrefix("preop-"), let date = patient.surgeryDate {
+                navigationState.showPreOp(date: date)
+            } else if patient.isPostOp {
+                navigationState.showPostOp(searchText: query)
+            } else if patient.surgeryDate == nil {
+                navigationState.showPreOp(date: nil)
+            } else {
+                navigationState.showPreOp(searchText: query)
             }
         }
     }
@@ -284,7 +307,7 @@ struct OverviewView: View {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         formatter.timeStyle = .none
-        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.locale = appDisplayLocale()
         return formatter.string(from: date)
     }
 }
@@ -301,7 +324,7 @@ private struct OverviewExpandableSection: View {
     let isExpanded: Bool
     let subtitleProvider: (Patient, OverviewDataSection) -> String
     let onToggle: () -> Void
-    let onSelectPatient: (Patient) -> Void
+    let onSelectPatient: (Patient, OverviewDataSection) -> Void
     @State private var visibleCount: Int = 5
 
     var body: some View {
@@ -333,7 +356,7 @@ private struct OverviewExpandableSection: View {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(visiblePatients, id: \.id) { patient in
                         Button {
-                            onSelectPatient(patient)
+                            onSelectPatient(patient, section)
                         } label: {
                             OverviewTextLine(
                                 title: patientDisplayName(patient),
