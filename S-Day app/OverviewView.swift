@@ -149,7 +149,7 @@ struct OverviewView: View {
                         NativeSearchBar(text: $searchText, placeholder: "全局快速定位...")
                     }
                     .padding(.horizontal)
-                    .padding(.top, 4)
+                    .padding(.top, 0)
                     .padding(.bottom, 8)
                     .contentShape(Rectangle())
                     .onTapGesture {

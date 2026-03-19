@@ -40,11 +40,11 @@ struct SettingsView: View {
                     Spacer()
                 }
                 .padding(.horizontal)
-                .padding(.top, 4)
-                .padding(.bottom, 4)
+                .padding(.top, 0)
+                .padding(.bottom, 8)
                 
                 Form {
-                    Section(header: Text("关于")) {
+                    Section(header: Text("关于").padding(.top, 18)) {
                         Text("S-Day (Surgery Day)")
                         Text("极速外科病人管理")
                             .font(.caption)
