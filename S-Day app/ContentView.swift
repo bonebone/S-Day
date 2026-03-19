@@ -3,6 +3,7 @@ import SwiftData
 import LocalAuthentication
 
 struct ContentView: View {
+    @EnvironmentObject private var navigationState: AppNavigationState
     @Query private var allPatients: [Patient]
 
     /// Post-op patients with "需追踪" tag.
@@ -21,25 +22,29 @@ struct ContentView: View {
     @State private var isUnlocked: Bool = false
 
     var body: some View {
-        TabView {
+        TabView(selection: $navigationState.selectedTab) {
             OverviewView()
+                .tag(AppTab.overview)
                 .tabItem {
                     Label("概览", systemImage: "chart.bar.doc.horizontal")
                 }
 
             PreOpView()
+                .tag(AppTab.preOp)
                 .tabItem {
                     Label("术前", systemImage: "list.bullet.clipboard")
                 }
                 .badge(preOpTrackingCount > 0 ? preOpTrackingCount : 0)
 
             PostOpView()
+                .tag(AppTab.postOp)
                 .tabItem {
                     Label("术后", systemImage: "checkmark.circle")
                 }
                 .badge(postOpTrackingCount > 0 ? postOpTrackingCount : 0)
 
             SettingsView()
+                .tag(AppTab.settings)
                 .tabItem {
                     Label("设置", systemImage: "gearshape")
                 }

@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 struct PreOpView: View {
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var navigationState: AppNavigationState
     @Query private var patients: [Patient]
     private let sectionSelectionIndicatorSize: CGFloat = 20
     private let sectionSelectionIndicatorSpacing: CGFloat = 4
@@ -166,6 +167,7 @@ struct PreOpView: View {
                                     }
                                 }
                             }
+                            .id(sectionScrollID(for: group.key))
                         ) {
                             if !collapsedDates.contains(group.key) {
                                 ForEach(group.value) { patient in
@@ -225,6 +227,15 @@ struct PreOpView: View {
                             }
                         }
                 )
+                .onAppear {
+                    syncFromNavigationState(proxy: proxy)
+                }
+                .onChange(of: navigationState.preOpSearchText) { _ in
+                    syncFromNavigationState(proxy: proxy)
+                }
+                .onChange(of: navigationState.preOpJumpTarget) { _ in
+                    syncFromNavigationState(proxy: proxy)
+                }
             }
             } // ScrollViewReader
             .toolbar(.hidden, for: .navigationBar)
@@ -397,6 +408,36 @@ struct PreOpView: View {
                 TagSheetView(patient: patient, existingAllTags: existingTags())
             }
         }
+    }
+
+    private func syncFromNavigationState(proxy: ScrollViewProxy) {
+        if searchText != navigationState.preOpSearchText {
+            searchText = navigationState.preOpSearchText
+        }
+
+        guard let jumpTarget = navigationState.preOpJumpTarget else { return }
+
+        switch jumpTarget {
+        case .unscheduled:
+            searchText = ""
+            collapsedDates.remove(nil)
+            withAnimation {
+                proxy.scrollTo(sectionScrollID(for: nil), anchor: .top)
+            }
+        case .surgeryDate(let date):
+            searchText = ""
+            collapsedDates.remove(date)
+            withAnimation {
+                proxy.scrollTo(sectionScrollID(for: date), anchor: .top)
+            }
+        }
+    }
+
+    private func sectionScrollID(for date: Date?) -> String {
+        if let date {
+            return "preop-section-\(date.timeIntervalSinceReferenceDate)"
+        }
+        return "preop-section-unscheduled"
     }
     
 
