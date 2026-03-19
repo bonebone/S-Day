@@ -1,6 +1,33 @@
 import SwiftUI
 import SwiftData
 
+struct TabHeaderContainer<Content: View>: View {
+    let bottomPadding: CGFloat
+    let onTap: (() -> Void)?
+    @ViewBuilder var content: Content
+
+    init(
+        bottomPadding: CGFloat = 8,
+        onTap: (() -> Void)? = nil,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.bottomPadding = bottomPadding
+        self.onTap = onTap
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .padding(.horizontal)
+            .padding(.top, 0)
+            .padding(.bottom, bottomPadding)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                onTap?()
+            }
+    }
+}
+
 struct PatientRow: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var patient: Patient

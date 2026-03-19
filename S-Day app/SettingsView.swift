@@ -32,16 +32,14 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Custom Large Title for maximum space control
-                HStack {
-                    Text("设置")
-                        .font(.largeTitle)
-                        .bold()
-                    Spacer()
+                TabHeaderContainer {
+                    HStack {
+                        Text("设置")
+                            .font(.largeTitle)
+                            .bold()
+                        Spacer()
+                    }
                 }
-                .padding(.horizontal)
-                .padding(.top, 0)
-                .padding(.bottom, 8)
                 
                 Form {
                     Section(header: Text("关于").padding(.top, 18)) {

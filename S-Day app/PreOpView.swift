@@ -61,57 +61,54 @@ struct PreOpView: View {
         NavigationStack {
             ScrollViewReader { proxy in
                 VStack(spacing: 0) {
-                    ZStack {
-                        HStack(alignment: .center) {
-                            Text("术前")
-                                .font(.largeTitle)
-                                .bold()
-                                .layoutPriority(1)
-                            
-                            Spacer(minLength: 16)
-                            
-                            NativeSearchBar(text: $searchText, placeholder: "搜索术前...")
-                        }
-                        .opacity(isSelectionMode ? 0 : 1)
-                        .allowsHitTesting(!isSelectionMode)
-
-                        HStack(alignment: .center) {
-                            Button("取消") {
-                                withAnimation {
-                                    isSelectionMode = false
-                                    selectedPatients.removeAll()
-                                }
-                            }
-                            Spacer()
-                            Text("已选择 \(selectedPatients.count) 人")
-                                .font(.headline)
-                            Spacer()
-                            Button("全选") {
-                                withAnimation {
-                                    let allIds = groupedPreOpPatients.flatMap { $0.value }.map { $0.id }
-                                    if selectedPatients.count == allIds.count {
-                                        selectedPatients.removeAll()
-                                    } else {
-                                        selectedPatients = Set(allIds)
-                                    }
-                                }
-                            }
-                        }
-                        .opacity(isSelectionMode ? 1 : 0)
-                        .allowsHitTesting(isSelectionMode)
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 0)
-                    .padding(.bottom, 0)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
+                    TabHeaderContainer(onTap: {
                         withAnimation {
                             proxy.scrollTo("topPosition", anchor: .top)
                         }
+                    }) {
+                        ZStack {
+                            HStack(alignment: .center) {
+                                Text("术前")
+                                    .font(.largeTitle)
+                                    .bold()
+                                    .layoutPriority(1)
+                                
+                                Spacer(minLength: 16)
+                                
+                                NativeSearchBar(text: $searchText, placeholder: "搜索术前...")
+                            }
+                            .opacity(isSelectionMode ? 0 : 1)
+                            .allowsHitTesting(!isSelectionMode)
+
+                            HStack(alignment: .center) {
+                                Button("取消") {
+                                    withAnimation {
+                                        isSelectionMode = false
+                                        selectedPatients.removeAll()
+                                    }
+                                }
+                                Spacer()
+                                Text("已选择 \(selectedPatients.count) 人")
+                                    .font(.headline)
+                                Spacer()
+                                Button("全选") {
+                                    withAnimation {
+                                        let allIds = groupedPreOpPatients.flatMap { $0.value }.map { $0.id }
+                                        if selectedPatients.count == allIds.count {
+                                            selectedPatients.removeAll()
+                                        } else {
+                                            selectedPatients = Set(allIds)
+                                        }
+                                    }
+                                }
+                            }
+                            .opacity(isSelectionMode ? 1 : 0)
+                            .allowsHitTesting(isSelectionMode)
+                        }
                     }
                 
-                List {
-                    Color.clear.frame(height: 0).listRowInsets(EdgeInsets()).listRowSeparator(.hidden).id("topPosition")
+                    List {
+                        Color.clear.frame(height: 0).listRowInsets(EdgeInsets()).listRowSeparator(.hidden).id("topPosition")
 
                     // Keep the row height in selection mode so the first patient does not shift upward.
                     GhostPatientRow { newName, newTags in
@@ -210,6 +207,8 @@ struct PreOpView: View {
                 .listStyle(.plain)
                 .listSectionSpacing(0)
                 .contentMargins(.top, 0, for: .scrollContent)
+                .environment(\.defaultMinListRowHeight, 0)
+                .padding(.top, 4)
                 .animation(listInsertionAnimation, value: preOpListAnimationKey)
                 // Left swipe in selection mode exits it
                 .simultaneousGesture(

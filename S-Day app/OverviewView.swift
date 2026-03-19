@@ -138,23 +138,20 @@ struct OverviewView: View {
         NavigationStack {
             ScrollViewReader { proxy in
                 VStack(spacing: 0) {
-                    HStack(alignment: .center) {
-                        Text("概览")
-                            .font(.largeTitle)
-                            .bold()
-                            .layoutPriority(1)
-
-                        Spacer(minLength: 16)
-
-                        NativeSearchBar(text: $searchText, placeholder: "全局快速定位...")
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 0)
-                    .padding(.bottom, 8)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
+                    TabHeaderContainer(onTap: {
                         withAnimation {
                             proxy.scrollTo("topPosition", anchor: .top)
+                        }
+                    }) {
+                        HStack(alignment: .center) {
+                            Text("概览")
+                                .font(.largeTitle)
+                                .bold()
+                                .layoutPriority(1)
+
+                            Spacer(minLength: 16)
+
+                            NativeSearchBar(text: $searchText, placeholder: "全局快速定位...")
                         }
                     }
 
