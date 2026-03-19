@@ -59,7 +59,7 @@ struct SettingsView: View {
                         }
                         .pickerStyle(.segmented)
                     }
-                    
+
                     Section(header: Text("隐私保护")) {
                         Toggle(isOn: $requireBiometrics) {
                             Label("要求 Face ID / 密码", systemImage: "faceid")

@@ -3,6 +3,8 @@ import SwiftData
 
 @main
 struct SDayApp: App {
+    @StateObject private var navigationState = AppNavigationState()
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Patient.self,
@@ -22,6 +24,7 @@ struct SDayApp: App {
         WindowGroup {
             ContentView()
                 .preferredColorScheme(appearance.colorScheme)
+                .environmentObject(navigationState)
                 .task {
                     // Bootstrap: ensure all tags already on patients exist in TagColorStore.
                     // This handles data that predates the tag manager.

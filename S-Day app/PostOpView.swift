@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 struct PostOpView: View {
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var navigationState: AppNavigationState
     @Query private var patients: [Patient]
     private let sectionSelectionIndicatorSize: CGFloat = 20
     private let sectionSelectionIndicatorSpacing: CGFloat = 4
@@ -208,6 +209,12 @@ struct PostOpView: View {
                             }
                         }
                 )
+                .onAppear {
+                    syncFromNavigationState()
+                }
+                .onChange(of: navigationState.postOpSearchText) { _ in
+                    syncFromNavigationState()
+                }
             }
             } // ScrollViewReader
             .toolbar(.hidden, for: .navigationBar)
@@ -379,6 +386,12 @@ struct PostOpView: View {
             .sheet(item: $selectedPatientForTag) { patient in
                 TagSheetView(patient: patient, existingAllTags: existingTags())
             }
+        }
+    }
+
+    private func syncFromNavigationState() {
+        if searchText != navigationState.postOpSearchText {
+            searchText = navigationState.postOpSearchText
         }
     }
     
