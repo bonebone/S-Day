@@ -111,8 +111,8 @@ private func exportPreOpDateTitle(_ date: Date?) -> String {
     guard let date else { return "手术日期待定" }
     let isCurrentYear = Calendar.current.isDate(date, equalTo: Date(), toGranularity: .year)
     let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "zh_CN")
-    formatter.dateFormat = isCurrentYear ? "M月d日 (E)" : "yyyy年M月d日 (E)"
+    formatter.locale = appDisplayLocale()
+    formatter.setLocalizedDateFormatFromTemplate(isCurrentYear ? "MdE" : "yMdE")
     return "计划 \(formatter.string(from: date)) 手术"
 }
 
@@ -120,7 +120,7 @@ private func exportPostOpDateTitle(_ date: Date?) -> String {
     guard let date else { return "手术日期待定" }
     let isCurrentYear = Calendar.current.isDate(date, equalTo: Date(), toGranularity: .year)
     let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "zh_CN")
-    formatter.dateFormat = isCurrentYear ? "M月d日 (E)" : "yyyy年M月d日 (E)"
+    formatter.locale = appDisplayLocale()
+    formatter.setLocalizedDateFormatFromTemplate(isCurrentYear ? "MdE" : "yMdE")
     return "\(formatter.string(from: date)) 手术"
 }

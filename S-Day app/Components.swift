@@ -104,7 +104,7 @@ struct GhostPatientRow: View {
                 text: $input,
                 tags: $tags,
                 allTags: existingTags(),
-                placeholder: "新病人(例如：张三 #高危)...",
+                placeholder: "新病人...",
                 autoFocusIfEmpty: false,
                 keepFocusOnSubmit: true,
                 onSubmit: {
@@ -244,7 +244,7 @@ private let dateFormatter: DateFormatter = {
     let formatter = DateFormatter()
     formatter.dateStyle = .medium
     formatter.timeStyle = .none
-    formatter.locale = Locale(identifier: "zh_CN")
+    formatter.locale = appDisplayLocale()
     return formatter
 }()
 

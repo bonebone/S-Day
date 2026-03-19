@@ -212,6 +212,11 @@ struct PostOpView: View {
                 .onAppear {
                     syncFromNavigationState()
                 }
+                .onChange(of: searchText) { newValue in
+                    if navigationState.postOpSearchText != newValue {
+                        navigationState.postOpSearchText = newValue
+                    }
+                }
                 .onChange(of: navigationState.postOpSearchText) { _ in
                     syncFromNavigationState()
                 }
@@ -313,7 +318,7 @@ struct PostOpView: View {
                         DatePicker("手术日期", selection: $batchSurgeryDate, displayedComponents: .date)
                             .datePickerStyle(.graphical)
                             .environment(\.calendar, Calendar.autoupdatingCurrent)
-                            .environment(\.locale, Locale.autoupdatingCurrent)
+                            .environment(\.locale, appDisplayLocale())
                         
                         Section {
                             Button(role: .destructive) {
@@ -356,7 +361,7 @@ struct PostOpView: View {
                             DatePicker("手术日期", selection: $singlePatientSurgeryDate, displayedComponents: .date)
                                 .datePickerStyle(.graphical)
                                 .environment(\.calendar, Calendar.autoupdatingCurrent)
-                                .environment(\.locale, Locale.autoupdatingCurrent)
+                                .environment(\.locale, appDisplayLocale())
                         }
 
                         if patient.surgeryDate != nil {
