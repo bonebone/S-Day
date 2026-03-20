@@ -16,6 +16,7 @@ struct SettingsView: View {
     @State private var showingImporter = false
     @State private var showingImportConfirm = false
     @State private var pendingImportURL: URL? = nil
+    @State private var importConfirmText = ""
     
     // Appearance state
     @AppStorage("appAppearance") private var appearance: AppAppearance = .system
@@ -28,6 +29,7 @@ struct SettingsView: View {
     @State private var toastMessage = ""
     
     private let confirmPhrase = "清除所有数据"
+    private let importConfirmPhrase = "确认导入并覆盖"
     
     var body: some View {
         NavigationStack {
@@ -140,17 +142,23 @@ struct SettingsView: View {
                 print("Import failed: \(error.localizedDescription)")
             }
         }
-        .alert("确认导入", isPresented: $showingImportConfirm) {
-            Button("取消", role: .cancel) {
-                pendingImportURL = nil
-            }
-            Button("确认导入并覆盖", role: .destructive) {
-                if let url = pendingImportURL {
-                    performImport(from: url)
+        .sheet(isPresented: $showingImportConfirm) {
+            ImportDataConfirmView(
+                confirmPhrase: importConfirmPhrase,
+                confirmText: $importConfirmText,
+                onConfirm: {
+                    if let url = pendingImportURL {
+                        performImport(from: url)
+                    }
+                    showingImportConfirm = false
+                    importConfirmText = ""
+                },
+                onCancel: {
+                    pendingImportURL = nil
+                    showingImportConfirm = false
+                    importConfirmText = ""
                 }
-            }
-        } message: {
-            Text("导入功能会完全覆盖当前的全部数据（包括病人条目和标签设置），此操作不可恢复。是否确认？")
+            )
         }
         .overlay(
             VStack {
@@ -221,6 +229,71 @@ struct SettingsView: View {
     }
 }
 
+struct ImportDataConfirmView: View {
+    let confirmPhrase: String
+    @Binding var confirmText: String
+    var onConfirm: () -> Void
+    var onCancel: () -> Void
+    @FocusState private var isFocused: Bool
+    
+    var isMatch: Bool {
+        confirmText == confirmPhrase
+    }
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            VStack(spacing: 8) {
+                Image(systemName: "arrow.down.doc.fill")
+                    .font(.largeTitle)
+                    .foregroundColor(.orange)
+                Text("导入数据")
+                    .font(.title2)
+                    .bold()
+                (Text("此操作会完全覆盖当前的所有数据（包括病人条目和标签设置），\n请在下方输入")
+                    + Text(confirmPhrase).bold()
+                    + Text("以确认。"))
+                    .font(.callout)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.top, 24)
+            
+            TextField("在此输入确认文字", text: $confirmText)
+                .textFieldStyle(.roundedBorder)
+                .font(.body)
+                .focused($isFocused)
+                .autocorrectionDisabled()
+                .padding(.horizontal)
+            
+            HStack(spacing: 12) {
+                Button("取消", action: onCancel)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.gray.opacity(0.2))
+                    .foregroundColor(.primary)
+                    .cornerRadius(12)
+                
+                Button(action: onConfirm) {
+                    Text("确认导入")
+                        .bold()
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(isMatch ? Color.orange : Color.orange.opacity(0.3))
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
+                }
+                .disabled(!isMatch)
+            }
+            .padding(.horizontal)
+        }
+        .padding(.bottom, 20)
+        .presentationDetents([.fraction(0.4)])
+        .onAppear {
+            isFocused = true
+        }
+    }
+}
+
 struct ClearDataConfirmView: View {
     let confirmPhrase: String
     @Binding var confirmText: String
@@ -261,7 +334,8 @@ struct ClearDataConfirmView: View {
                 Button("取消", action: onCancel)
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(Color(UIColor.secondarySystemBackground))
+                    .background(Color.gray.opacity(0.2))
+                    .foregroundColor(.primary)
                     .cornerRadius(12)
                 
                 Button(action: onConfirm) {
