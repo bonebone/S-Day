@@ -1,6 +1,16 @@
 import SwiftUI
 
+func tagFilterSheetDefaultDetent(tagCount: Int) -> PresentationDetent {
+    let screenHeight = UIScreen.main.bounds.height
+    let minHeight = screenHeight * 0.5
+    let maxHeight = screenHeight * 0.84
+    let totalRows = max(tagCount + 1, 1)
+    let estimatedContentHeight = 172 + CGFloat(totalRows) * 62
+    return .height(min(max(estimatedContentHeight, minHeight), maxHeight))
+}
+
 struct TagFilterBar: View {
+    @ObservedObject private var colorStore = TagColorStore.shared
     let tags: [String]
     let selectedTag: String?
     let onSelect: (String?) -> Void
@@ -54,6 +64,7 @@ struct TagFilterBar: View {
 }
 
 struct TagFilterChip: View {
+    @ObservedObject private var colorStore = TagColorStore.shared
     let title: String
     let tag: String?
     let isSelected: Bool
@@ -165,27 +176,34 @@ private struct TagFilterAllRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Text("全部")
-                .font(.body.weight(.medium))
-                .foregroundStyle(.primary)
+            HStack(spacing: 12) {
+                Text("全部")
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(.primary)
 
-            Spacer()
+                Spacer()
 
-            Text("\(count)")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                Text("\(count)")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
 
-            Image(systemName: "checkmark")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(Color.accentColor)
-                .opacity(isSelected ? 1 : 0)
+                Image(systemName: "checkmark")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .opacity(isSelected ? 1 : 0)
+            }
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
+
+            Color.clear
+                .frame(width: 28, height: 28)
         }
-        .padding(.vertical, 4)
         .contentShape(Rectangle())
     }
 }
 
 struct TagFilterRow: View {
+    @ObservedObject private var colorStore = TagColorStore.shared
     let tag: String
     let count: Int
     let isSelected: Bool
@@ -197,14 +215,13 @@ struct TagFilterRow: View {
         HStack(spacing: 12) {
             Button(action: onSelect) {
                 HStack(spacing: 12) {
-                    Circle()
-                        .fill(Color.tagColor(for: tag))
-                        .frame(width: 10, height: 10)
-
                     Text(tag)
-                        .font(.body)
-                        .fontWeight(isSelected ? .semibold : .regular)
-                        .foregroundStyle(.primary)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.tagTextColor(for: tag))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.tagColor(for: tag))
+                        .clipShape(Capsule())
 
                     Spacer()
 
@@ -214,7 +231,7 @@ struct TagFilterRow: View {
 
                     Image(systemName: "checkmark")
                         .font(.footnote.weight(.semibold))
-                        .foregroundStyle(Color.tagColor(for: tag))
+                        .foregroundStyle(.secondary)
                         .opacity(isSelected ? 1 : 0)
                 }
                 .padding(.vertical, 6)
@@ -225,11 +242,11 @@ struct TagFilterRow: View {
             Button(action: onTogglePinned) {
                 Image(systemName: isPinned ? "pin.fill" : "pin")
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(isPinned ? Color.tagColor(for: tag) : Color.secondary)
+                    .foregroundStyle(isPinned ? .primary : .secondary)
                     .frame(width: 28, height: 28)
                     .background(
                         Circle()
-                            .fill(Color(.secondarySystemBackground))
+                            .fill(isPinned ? Color(.tertiarySystemFill) : Color(.secondarySystemBackground))
                     )
             }
             .buttonStyle(.plain)

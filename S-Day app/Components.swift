@@ -30,6 +30,7 @@ struct TabHeaderContainer<Content: View>: View {
 
 struct PatientRow: View {
     @Environment(\.modelContext) private var modelContext
+    @ObservedObject private var colorStore = TagColorStore.shared
     @Bindable var patient: Patient
     private let rowVerticalPadding: CGFloat = 8
     private let selectionIndicatorSize: CGFloat = 20
@@ -117,6 +118,7 @@ struct PatientRow: View {
 }
 
 struct GhostPatientRow: View {
+    @ObservedObject private var colorStore = TagColorStore.shared
     var onCommit: (String, [String]) -> Void
     @State private var input: String = ""
     @State private var tags: [String] = []
@@ -159,6 +161,8 @@ struct TagSheetView: View {
     var existingAllTags: [String]
     @State private var newTag: String = ""
     @State private var draftTags: [String] = []
+    @Namespace private var tagTransitionNamespace
+    private let tagTransitionAnimation = Animation.snappy(duration: 0.26, extraBounce: 0)
     
     var existingTags: [String] {
         existingAllTags
@@ -166,78 +170,76 @@ struct TagSheetView: View {
     
     var body: some View {
         NavigationStack {
-            Form {
-                Section(header: Text("已选标签")) {
-                    if draftTags.isEmpty {
-                        Text("无").foregroundColor(.secondary)
-                    } else {
-                        FlowLayout(spacing: 8) {
-                            ForEach(draftTags, id: \.self) { tag in
-                                Button(action: {
-                                    if let idx = draftTags.firstIndex(of: tag) {
-                                        draftTags.remove(at: idx)
-                                        let impact = UIImpactFeedbackGenerator(style: .medium)
-                                        impact.impactOccurred()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    tagEditorSection(title: "已选标签") {
+                        ZStack(alignment: .leading) {
+                            selectableTagChip("占位标签", systemImage: "xmark")
+                                .hidden()
+                                .padding(.vertical, 4)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                            FlowLayout(spacing: 8) {
+                                ForEach(draftTags, id: \.self) { tag in
+                                    Button(action: {
+                                        removeDraftTag(tag)
+                                    }) {
+                                        selectableTagChip(tag, systemImage: "xmark")
                                     }
-                                }) {
-                                    HStack(spacing: 4) {
-                                        Text(tag)
-                                        Image(systemName: "xmark")
-                                            .font(.caption2)
-                                    }
-                                    .font(.caption)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 6)
-                                    .background(Color.tagColor(for: tag).opacity(0.8))
-                                    .foregroundColor(Color.tagTextColor(for: tag))
-                                    .cornerRadius(12)
+                                    .buttonStyle(.plain)
                                 }
-                                .buttonStyle(.plain)
+                            }
+                            .padding(.vertical, 4)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .animation(tagTransitionAnimation, value: draftTags)
+
+                            if draftTags.isEmpty {
+                                Text("无")
+                                    .foregroundColor(.secondary)
+                                    .padding(.vertical, 4)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                             }
                         }
-                        .padding(.vertical, 4)
+                    }
+
+                    tagEditorSection(title: "添加新标签或选择已有标签") {
+                        HStack {
+                            TextField("新标签名称", text: $newTag)
+                                .onSubmit {
+                                    addTag(newTag)
+                                }
+                            Button(action: { addTag(newTag) }) {
+                                Image(systemName: "plus.circle.fill")
+                                    .foregroundColor(newTag.trimmingCharacters(in: .whitespaces).isEmpty ? .gray : .orange)
+                            }
+                            .disabled(newTag.trimmingCharacters(in: .whitespaces).isEmpty)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                        let availableTags = existingTags.filter { !draftTags.contains($0) }
+                        if !availableTags.isEmpty {
+                            FlowLayout(spacing: 8) {
+                                ForEach(availableTags, id: \.self) { tag in
+                                    Button(action: {
+                                        addTag(tag)
+                                    }) {
+                                        selectableTagChip(tag, systemImage: "plus")
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                            .animation(tagTransitionAnimation, value: availableTags)
+                        }
                     }
                 }
-                
-                Section(header: Text("添加新标签或选择已有标签")) {
-                    HStack {
-                        TextField("新标签名称", text: $newTag)
-                            .onSubmit {
-                                addTag(newTag)
-                            }
-                        Button(action: { addTag(newTag) }) {
-                            Image(systemName: "plus.circle.fill")
-                                .foregroundColor(newTag.trimmingCharacters(in: .whitespaces).isEmpty ? .gray : .orange)
-                        }
-                        .disabled(newTag.trimmingCharacters(in: .whitespaces).isEmpty)
-                    }
-                    
-                    let availableTags = existingTags.filter { !draftTags.contains($0) }
-                    if !availableTags.isEmpty {
-                        FlowLayout(spacing: 8) {
-                            ForEach(availableTags, id: \.self) { tag in
-                                Button(action: {
-                                    addTag(tag)
-                                }) {
-                                    HStack(spacing: 4) {
-                                        Text(tag)
-                                        Image(systemName: "plus")
-                                            .font(.caption2)
-                                    }
-                                    .font(.caption)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 6)
-                                    .background(Color.tagColor(for: tag).opacity(0.8))
-                                    .foregroundColor(Color.tagTextColor(for: tag))
-                                    .cornerRadius(12)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .padding(.vertical, 4)
-                    }
-                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 18)
             }
+            .scrollContentBackground(.hidden)
+            .background(Color(.systemGroupedBackground))
             .navigationTitle("标签管理")
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarItems(trailing: Button("完成") {
@@ -249,14 +251,57 @@ struct TagSheetView: View {
         }
         .presentationDetents([.medium, .large])
     }
+
+    @ViewBuilder
+    private func tagEditorSection<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+
+            VStack(alignment: .leading, spacing: 10) {
+                content()
+            }
+            .padding(14)
+            .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+    }
     
+    @ViewBuilder
+    private func selectableTagChip(_ tag: String, systemImage: String) -> some View {
+        HStack(spacing: 4) {
+            Text(tag)
+            Image(systemName: systemImage)
+                .font(.caption2)
+        }
+        .font(.caption)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Color.tagColor(for: tag).opacity(0.8))
+        .foregroundColor(Color.tagTextColor(for: tag))
+        .cornerRadius(12)
+        .zIndex(1)
+        .matchedGeometryEffect(id: "tag-sheet-\(tag)", in: tagTransitionNamespace)
+    }
+
     private func addTag(_ tag: String) {
         let trimmed = tag.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty && !draftTags.contains(trimmed) {
-            draftTags.append(trimmed)
+            withAnimation(tagTransitionAnimation) {
+                draftTags.append(trimmed)
+            }
             newTag = ""
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         }
+    }
+
+    private func removeDraftTag(_ tag: String) {
+        guard let idx = draftTags.firstIndex(of: tag) else { return }
+        withAnimation(tagTransitionAnimation) {
+            draftTags.remove(at: idx)
+        }
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
 
     private func applyChanges() {
@@ -370,6 +415,7 @@ func orderedSuggestedTags(allTags: [String], excluding selectedTags: [String], q
 
 /// A token-style input that renders confirmed #tags as inline capsules.
 struct TagTokenField: View {
+    @ObservedObject private var colorStore = TagColorStore.shared
     @Binding var text: String
     @Binding var tags: [String]
     var allTags: [String]
@@ -755,17 +801,21 @@ struct FlowLayout: Layout {
 
 // MARK: - Smart Date Formatting Helpers
 
+func formatAbsoluteSurgeryDate(_ date: Date) -> String {
+    let isCurrentYear = Calendar.current.isDate(date, equalTo: Date(), toGranularity: .year)
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "zh_CN")
+    formatter.dateFormat = isCurrentYear ? "M月d日 (E)" : "yyyy年M月d日 (E)"
+    return formatter.string(from: date)
+}
+
 /// 术前分组标题：计划今天手术 / 计划明天手术 / 计划 M月d日 (周x) 手术 / 手术日期待定
 func formatPreOpDate(_ date: Date?) -> String {
     guard let d = date else { return "手术日期待定" }
     let calendar = Calendar.current
     if calendar.isDateInToday(d)    { return "计划今天手术" }
     if calendar.isDateInTomorrow(d) { return "计划明天手术" }
-    let isCurrentYear = calendar.isDate(d, equalTo: Date(), toGranularity: .year)
-    let f = DateFormatter()
-    f.locale = Locale(identifier: "zh_CN")
-    f.dateFormat = isCurrentYear ? "M月d日 (E)" : "yyyy年M月d日 (E)"
-    return "计划 \(f.string(from: d)) 手术"
+    return "计划 \(formatAbsoluteSurgeryDate(d)) 手术"
 }
 
 /// 术后分组标题：今天手术 / 昨天手术 / M月d日 (周x) 手术
@@ -773,11 +823,7 @@ func formatPostOpDate(_ date: Date) -> String {
     let calendar = Calendar.current
     if calendar.isDateInToday(date)     { return "今天手术" }
     if calendar.isDateInYesterday(date) { return "昨天手术" }
-    let isCurrentYear = calendar.isDate(date, equalTo: Date(), toGranularity: .year)
-    let f = DateFormatter()
-    f.locale = Locale(identifier: "zh_CN")
-    f.dateFormat = isCurrentYear ? "M月d日 (E)" : "yyyy年M月d日 (E)"
-    return "\(f.string(from: date)) 手术"
+    return "\(formatAbsoluteSurgeryDate(date)) 手术"
 }
 
 struct BatchTagSheetView: View {
@@ -787,78 +833,88 @@ struct BatchTagSheetView: View {
     @Environment(\.dismiss) var dismiss
     @State private var newTag: String = ""
     @State private var pendingTags: [String] = []
+    @Namespace private var tagTransitionNamespace
+    private let tagTransitionAnimation = Animation.snappy(duration: 0.26, extraBounce: 0)
     
     var selectableTags: [String] {
         orderedSelectableTags(existingAllTags)
     }
+
+    var availableTags: [String] {
+        selectableTags.filter { !pendingTags.contains($0) }
+    }
     
     var body: some View {
         NavigationStack {
-            Form {
-                if !pendingTags.isEmpty {
-                    Section(header: Text("待添加标签")) {
-                        FlowLayout(spacing: 8) {
-                            ForEach(pendingTags, id: \.self) { tag in
-                                Button(action: {
-                                    removePendingTag(tag)
-                                }) {
-                                    HStack(spacing: 4) {
-                                        Text(tag)
-                                        Image(systemName: "xmark")
-                                            .font(.caption2)
-                                    }
-                                    .font(.caption)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 6)
-                                    .background(Color.tagColor(for: tag).opacity(0.8))
-                                    .foregroundColor(Color.tagTextColor(for: tag))
-                                    .cornerRadius(12)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .padding(.vertical, 4)
-                    }
-                }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    batchTagEditorSection(title: "待添加标签") {
+                        ZStack(alignment: .leading) {
+                            batchTagChip("占位标签", systemImage: "xmark", isSelected: true)
+                                .hidden()
+                                .padding(.vertical, 4)
+                                .frame(maxWidth: .infinity, alignment: .leading)
 
-                Section(header: Text("添加标签到已选 (\(patients.count)) 人")) {
-                    HStack {
-                        TextField("新标签名称", text: $newTag)
-                            .onSubmit {
-                                stageBatchTag(newTag)
-                            }
-                        Button(action: { stageBatchTag(newTag) }) {
-                            Image(systemName: "plus.circle.fill")
-                                .foregroundColor(newTag.trimmingCharacters(in: .whitespaces).isEmpty ? .gray : .orange)
-                        }
-                        .disabled(newTag.trimmingCharacters(in: .whitespaces).isEmpty)
-                    }
-                    
-                    if !selectableTags.isEmpty {
-                        FlowLayout(spacing: 8) {
-                            ForEach(selectableTags, id: \.self) { tag in
-                                Button(action: {
-                                    togglePendingTag(tag)
-                                }) {
-                                    HStack(spacing: 4) {
-                                        Text(tag)
-                                        Image(systemName: pendingTags.contains(tag) ? "checkmark" : "plus")
-                                            .font(.caption2)
+                            FlowLayout(spacing: 8) {
+                                ForEach(pendingTags, id: \.self) { tag in
+                                    Button(action: {
+                                        removePendingTag(tag)
+                                    }) {
+                                        batchTagChip(tag, systemImage: "xmark", isSelected: true)
                                     }
-                                    .font(.caption)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 6)
-                                    .background(Color.tagColor(for: tag).opacity(pendingTags.contains(tag) ? 1.0 : 0.8))
-                                    .foregroundColor(Color.tagTextColor(for: tag))
-                                    .cornerRadius(12)
+                                    .buttonStyle(.plain)
                                 }
-                                .buttonStyle(.plain)
+                            }
+                            .padding(.vertical, 4)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .animation(tagTransitionAnimation, value: pendingTags)
+
+                            if pendingTags.isEmpty {
+                                Text("无")
+                                    .foregroundColor(.secondary)
+                                    .padding(.vertical, 4)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                             }
                         }
-                        .padding(.vertical, 4)
+                    }
+
+                    batchTagEditorSection(title: "添加标签到已选 (\(patients.count)) 人") {
+                        HStack {
+                            TextField("新标签名称", text: $newTag)
+                                .onSubmit {
+                                    stageBatchTag(newTag)
+                                }
+                            Button(action: { stageBatchTag(newTag) }) {
+                                Image(systemName: "plus.circle.fill")
+                                    .foregroundColor(newTag.trimmingCharacters(in: .whitespaces).isEmpty ? .gray : .orange)
+                            }
+                            .disabled(newTag.trimmingCharacters(in: .whitespaces).isEmpty)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                        if !availableTags.isEmpty {
+                            FlowLayout(spacing: 8) {
+                                ForEach(availableTags, id: \.self) { tag in
+                                    Button(action: {
+                                        togglePendingTag(tag)
+                                    }) {
+                                        batchTagChip(tag, systemImage: "plus", isSelected: false)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                            .animation(tagTransitionAnimation, value: availableTags)
+                        }
                     }
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 18)
             }
+            .scrollContentBackground(.hidden)
+            .background(Color(.systemGroupedBackground))
             .navigationTitle("批量打标签")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -871,6 +927,39 @@ struct BatchTagSheetView: View {
             }
         }
     }
+
+    @ViewBuilder
+    private func batchTagEditorSection<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+
+            VStack(alignment: .leading, spacing: 10) {
+                content()
+            }
+            .padding(14)
+            .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+    }
+
+    @ViewBuilder
+    private func batchTagChip(_ tag: String, systemImage: String, isSelected: Bool) -> some View {
+        HStack(spacing: 4) {
+            Text(tag)
+            Image(systemName: systemImage)
+                .font(.caption2)
+        }
+        .font(.caption)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Color.tagColor(for: tag).opacity(isSelected ? 1.0 : 0.8))
+        .foregroundColor(Color.tagTextColor(for: tag))
+        .cornerRadius(12)
+        .zIndex(1)
+        .matchedGeometryEffect(id: "batch-tag-sheet-\(tag)", in: tagTransitionNamespace)
+    }
     
     private func stageBatchTag(_ tag: String) {
         let trimmed = tag.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -880,7 +969,10 @@ struct BatchTagSheetView: View {
             return
         }
 
-        pendingTags.append(trimmed)
+        registerTagsIfNeeded([trimmed])
+        withAnimation(tagTransitionAnimation) {
+            pendingTags.append(trimmed)
+        }
         newTag = ""
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
@@ -895,7 +987,9 @@ struct BatchTagSheetView: View {
 
     private func removePendingTag(_ tag: String) {
         guard let idx = pendingTags.firstIndex(of: tag) else { return }
-        pendingTags.remove(at: idx)
+        withAnimation(tagTransitionAnimation) {
+            pendingTags.remove(at: idx)
+        }
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
 

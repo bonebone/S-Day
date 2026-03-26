@@ -6,6 +6,7 @@ struct PostOpView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var navigationState: AppNavigationState
     @Query private var patients: [Patient]
+    @ObservedObject private var colorStore = TagColorStore.shared
     @ObservedObject private var tagFilterStore = TagFilterStore.shared
     private let sectionSelectionIndicatorSize: CGFloat = 20
     private let sectionSelectionIndicatorSpacing: CGFloat = 4
@@ -14,6 +15,7 @@ struct PostOpView: View {
     @State private var searchText = ""
     @State private var selectedTag: String?
     @State private var showTagFilterSheet = false
+    @State private var tagFilterSheetDetent: PresentationDetent = .fraction(0.5)
     
     // Multiple selection states
     @State private var isSelectionMode = false
@@ -134,6 +136,7 @@ struct PostOpView: View {
                                         selectedTag = tag
                                     },
                                     onMore: {
+                                        tagFilterSheetDetent = tagFilterSheetDefaultDetent(tagCount: tagFilterSnapshot.sheetTags.count)
                                         showTagFilterSheet = true
                                     }
                                 )
@@ -287,10 +290,15 @@ struct PostOpView: View {
                                 selectedTag = tag
                             },
                             onTogglePinned: { tag in
-                                tagFilterStore.togglePinned(tag, in: .postOp)
+                                withAnimation(.snappy(duration: 0.28, extraBounce: 0)) {
+                                    tagFilterStore.togglePinned(tag, in: .postOp)
+                                }
                             }
                         )
-                        .presentationDetents([.fraction(0.45), .medium, .large])
+                        .presentationDetents(
+                            [tagFilterSheetDefaultDetent(tagCount: tagFilterSnapshot.sheetTags.count), .large],
+                            selection: $tagFilterSheetDetent
+                        )
                     }
             }
             } // ScrollViewReader

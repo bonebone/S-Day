@@ -109,18 +109,10 @@ private func exportSectionTitle(for date: Date?, style: ExportDateTitleStyle) ->
 
 private func exportPreOpDateTitle(_ date: Date?) -> String {
     guard let date else { return "手术日期待定" }
-    let isCurrentYear = Calendar.current.isDate(date, equalTo: Date(), toGranularity: .year)
-    let formatter = DateFormatter()
-    formatter.locale = appDisplayLocale()
-    formatter.setLocalizedDateFormatFromTemplate(isCurrentYear ? "MdE" : "yMdE")
-    return "计划 \(formatter.string(from: date)) 手术"
+    return "计划 \(formatAbsoluteSurgeryDate(date)) 手术"
 }
 
 private func exportPostOpDateTitle(_ date: Date?) -> String {
     guard let date else { return "手术日期待定" }
-    let isCurrentYear = Calendar.current.isDate(date, equalTo: Date(), toGranularity: .year)
-    let formatter = DateFormatter()
-    formatter.locale = appDisplayLocale()
-    formatter.setLocalizedDateFormatFromTemplate(isCurrentYear ? "MdE" : "yMdE")
-    return "\(formatter.string(from: date)) 手术"
+    return "\(formatAbsoluteSurgeryDate(date)) 手术"
 }
