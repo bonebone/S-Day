@@ -6,6 +6,7 @@ import SwiftData
 struct TagManagerView: View {
     @Query private var patients: [Patient]
     @ObservedObject private var colorStore = TagColorStore.shared
+    @ObservedObject private var tagFilterStore = TagFilterStore.shared
 
     // Which tag's color picker is open
     @State private var colorPickerTag: String? = nil
@@ -76,6 +77,7 @@ struct TagManagerView: View {
             patient.tags.removeAll { $0 == tag }
         }
         colorStore.removeTag(tag)   // safe: ignores builtins
+        tagFilterStore.removeTag(tag)
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
 
@@ -91,6 +93,7 @@ struct TagManagerView: View {
             colorStore.colorIndices.removeValue(forKey: oldName)
         }
         colorStore.renameTagUsage(from: oldName, to: newName)
+        tagFilterStore.renameTag(from: oldName, to: newName)
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
 }
