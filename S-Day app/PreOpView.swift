@@ -6,12 +6,15 @@ struct PreOpView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var navigationState: AppNavigationState
     @Query private var patients: [Patient]
+    @ObservedObject private var tagFilterStore = TagFilterStore.shared
     private let sectionSelectionIndicatorSize: CGFloat = 20
     private let sectionSelectionIndicatorSpacing: CGFloat = 4
     private let listInsertionAnimation = Animation.snappy(duration: 0.32, extraBounce: 0.02)
     
     @State private var collapsedDates: Set<Date?> = []
     @State private var searchText = ""
+    @State private var selectedTag: String?
+    @State private var showTagFilterSheet = false
     
     // Multiple selection states
     @State private var isSelectionMode = false
@@ -25,17 +28,38 @@ struct PreOpView: View {
     @State private var showingToast = false
     @State private var toastMessage = ""
     
+    private var preOpPatients: [Patient] {
+        patients.filter { !$0.isPostOp }
+    }
+
+    private var tagFilterSnapshot: TagFilterSnapshot {
+        tagFilterStore.snapshot(
+            for: .preOp,
+            patients: patients,
+            selectedTag: selectedTag
+        )
+    }
+
+    private var filteredPreOpPatients: [Patient] {
+        preOpPatients.filter { patient in
+            if !searchText.isEmpty {
+                let matchesText = patient.rawInput.localizedCaseInsensitiveContains(searchText)
+                    || (patient.parsedName?.localizedCaseInsensitiveContains(searchText) ?? false)
+                let matchesSearchTag = patient.tags.contains { $0.localizedCaseInsensitiveContains(searchText) }
+                guard matchesText || matchesSearchTag else { return false }
+            }
+
+            if let selectedTag {
+                return patient.tags.contains(selectedTag)
+            }
+
+            return true
+        }
+    }
+
     // Group patients by their surgery date (ignoring time)
     var groupedPreOpPatients: [(key: Date?, value: [Patient])] {
-        let unsortedPreOp = patients.filter { patient in 
-            if patient.isPostOp { return false }
-            if searchText.isEmpty { return true }
-            let matchesText = patient.rawInput.localizedCaseInsensitiveContains(searchText) || (patient.parsedName?.localizedCaseInsensitiveContains(searchText) ?? false)
-            let matchesTag = patient.tags.contains { $0.localizedCaseInsensitiveContains(searchText) }
-            return matchesText || matchesTag
-        }
-        
-        let dict = Dictionary(grouping: unsortedPreOp) { patient -> Date? in
+        let dict = Dictionary(grouping: filteredPreOpPatients) { patient -> Date? in
             guard let date = patient.surgeryDate else { return nil }
             return Calendar.current.startOfDay(for: date)
         }
@@ -56,6 +80,10 @@ struct PreOpView: View {
             return ["section:\(groupKey)"] + group.value.map { "patient:\($0.id.uuidString)" }
         }
     }
+
+    private var shouldShowEmptyState: Bool {
+        groupedPreOpPatients.isEmpty && (!preOpPatients.isEmpty || !searchText.isEmpty || selectedTag != nil)
+    }
     
     var body: some View {
         NavigationStack {
@@ -66,183 +94,231 @@ struct PreOpView: View {
                             proxy.scrollTo("topPosition", anchor: .top)
                         }
                     }) {
-                        ZStack {
-                            HStack(alignment: .center) {
-                                Text("术前")
-                                    .font(.largeTitle)
-                                    .bold()
-                                    .layoutPriority(1)
-                                
-                                Spacer(minLength: 16)
-                                
-                                NativeSearchBar(text: $searchText, placeholder: "搜索术前...")
-                            }
-                            .opacity(isSelectionMode ? 0 : 1)
-                            .allowsHitTesting(!isSelectionMode)
-
-                            HStack(alignment: .center) {
-                                Button("取消") {
-                                    withAnimation {
-                                        isSelectionMode = false
-                                        selectedPatients.removeAll()
-                                    }
+                        VStack(spacing: 10) {
+                            ZStack {
+                                HStack(alignment: .center) {
+                                    Text("术前")
+                                        .font(.largeTitle)
+                                        .bold()
+                                        .layoutPriority(1)
+                                    
+                                    Spacer(minLength: 16)
+                                    
+                                    NativeSearchBar(text: $searchText, placeholder: "搜索术前...")
                                 }
-                                Spacer()
-                                Text("已选择 \(selectedPatients.count) 人")
-                                    .font(.headline)
-                                Spacer()
-                                Button("全选") {
-                                    withAnimation {
-                                        let allIds = groupedPreOpPatients.flatMap { $0.value }.map { $0.id }
-                                        if selectedPatients.count == allIds.count {
+                                .opacity(isSelectionMode ? 0 : 1)
+                                .allowsHitTesting(!isSelectionMode)
+                                
+                                HStack(alignment: .center) {
+                                    Button("取消") {
+                                        withAnimation {
+                                            isSelectionMode = false
                                             selectedPatients.removeAll()
-                                        } else {
-                                            selectedPatients = Set(allIds)
+                                        }
+                                    }
+                                    Spacer()
+                                    Text("已选择 \(selectedPatients.count) 人")
+                                        .font(.headline)
+                                    Spacer()
+                                    Button("全选") {
+                                        withAnimation {
+                                            let allIds = groupedPreOpPatients.flatMap { $0.value }.map { $0.id }
+                                            if selectedPatients.count == allIds.count {
+                                                selectedPatients.removeAll()
+                                            } else {
+                                                selectedPatients = Set(allIds)
+                                            }
                                         }
                                     }
                                 }
+                                .opacity(isSelectionMode ? 1 : 0)
+                                .allowsHitTesting(isSelectionMode)
                             }
-                            .opacity(isSelectionMode ? 1 : 0)
-                            .allowsHitTesting(isSelectionMode)
+                            
+                            if !tagFilterSnapshot.barTags.isEmpty {
+                                TagFilterBar(
+                                    tags: tagFilterSnapshot.barTags,
+                                    selectedTag: selectedTag,
+                                    onSelect: { tag in
+                                        selectedTag = tag
+                                    },
+                                    onMore: {
+                                        showTagFilterSheet = true
+                                    }
+                                )
+                                .opacity(isSelectionMode ? 0 : 1)
+                                .allowsHitTesting(!isSelectionMode)
+                                .accessibilityHidden(isSelectionMode)
+                            }
                         }
                     }
                 
                     List {
                         Color.clear.frame(height: 0).listRowInsets(EdgeInsets()).listRowSeparator(.hidden).id("topPosition")
 
-                    // Keep the row height in selection mode so the first patient does not shift upward.
-                    GhostPatientRow { newName, newTags in
-                        addPatient(name: newName, tags: newTags)
-                    }
-                    .opacity(isSelectionMode ? 0 : 1)
-                    .allowsHitTesting(!isSelectionMode)
-                    .accessibilityHidden(isSelectionMode)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 4, trailing: 16))
+                        // Keep the row height in selection mode so the first patient does not shift upward.
+                        GhostPatientRow { newName, newTags in
+                            addPatient(name: newName, tags: newTags)
+                        }
+                        .opacity(isSelectionMode ? 0 : 1)
+                        .allowsHitTesting(!isSelectionMode)
+                        .accessibilityHidden(isSelectionMode)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 4, trailing: 16))
+
+                        if shouldShowEmptyState {
+                            Text(searchText.isEmpty && selectedTag == nil ? "暂无术前病人" : "暂无匹配结果")
+                                .foregroundColor(.secondary)
+                                .italic()
+                                .listRowSeparator(.hidden)
+                        }
                     
-                    ForEach(groupedPreOpPatients, id: \.key) { group in
-                        let groupIds = group.value.map { $0.id }
-                        let isAllSelected = !groupIds.isEmpty && groupIds.allSatisfy { selectedPatients.contains($0) }
-                        Section(header: 
-                            HStack {
-                                Text(formatPreOpDate(group.key))
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(.secondary)
-                                    .padding(.leading, isSelectionMode ? sectionSelectionIndicatorSize + sectionSelectionIndicatorSpacing : 0)
-                                Spacer()
-                                Image(systemName: collapsedDates.contains(group.key) ? "chevron.right" : "chevron.down")
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
-                            }
-                            .padding(.vertical, 4)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .overlay(alignment: .leading) {
-                                Image(systemName: isAllSelected ? "checkmark.circle.fill" : "circle")
-                                    .foregroundColor(isAllSelected ? .blue : .gray)
-                                    .font(.system(size: sectionSelectionIndicatorSize))
-                                    .frame(width: sectionSelectionIndicatorSize, height: sectionSelectionIndicatorSize)
-                                    .opacity(isSelectionMode ? 1 : 0)
-                                    .allowsHitTesting(isSelectionMode)
-                                    .onTapGesture {
-                                        guard isSelectionMode else { return }
-                                        withAnimation {
-                                            if isAllSelected {
-                                                selectedPatients.subtract(groupIds)
-                                            } else {
-                                                selectedPatients.formUnion(groupIds)
+                        ForEach(groupedPreOpPatients, id: \.key) { group in
+                            let groupIds = group.value.map { $0.id }
+                            let isAllSelected = !groupIds.isEmpty && groupIds.allSatisfy { selectedPatients.contains($0) }
+                            Section(header: 
+                                HStack {
+                                    Text(formatPreOpDate(group.key))
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(.secondary)
+                                        .padding(.leading, isSelectionMode ? sectionSelectionIndicatorSize + sectionSelectionIndicatorSpacing : 0)
+                                    Spacer()
+                                    Image(systemName: collapsedDates.contains(group.key) ? "chevron.right" : "chevron.down")
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                }
+                                .padding(.vertical, 4)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .overlay(alignment: .leading) {
+                                    Image(systemName: isAllSelected ? "checkmark.circle.fill" : "circle")
+                                        .foregroundColor(isAllSelected ? .blue : .gray)
+                                        .font(.system(size: sectionSelectionIndicatorSize))
+                                        .frame(width: sectionSelectionIndicatorSize, height: sectionSelectionIndicatorSize)
+                                        .opacity(isSelectionMode ? 1 : 0)
+                                        .allowsHitTesting(isSelectionMode)
+                                        .onTapGesture {
+                                            guard isSelectionMode else { return }
+                                            withAnimation {
+                                                if isAllSelected {
+                                                    selectedPatients.subtract(groupIds)
+                                                } else {
+                                                    selectedPatients.formUnion(groupIds)
+                                                }
                                             }
                                         }
-                                    }
-                            }
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    if collapsedDates.contains(group.key) {
-                                        collapsedDates.remove(group.key)
-                                    } else {
-                                        collapsedDates.insert(group.key)
+                                }
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        if collapsedDates.contains(group.key) {
+                                            collapsedDates.remove(group.key)
+                                        } else {
+                                            collapsedDates.insert(group.key)
+                                        }
                                     }
                                 }
-                            }
-                            .id(sectionScrollID(for: group.key))
-                        ) {
-                            if !collapsedDates.contains(group.key) {
-                                ForEach(group.value) { patient in
-                                    let isSelected = selectedPatients.contains(patient.id)
-                                    PatientRow(patient: patient,
-                                               isSelectionMode: isSelectionMode,
-                                               isSelected: isSelected,
-                                               toggleSelection: {
-                                                   withAnimation {
-                                                       if isSelected {
-                                                           selectedPatients.remove(patient.id)
-                                                       } else {
+                                .id(sectionScrollID(for: group.key))
+                            ) {
+                                if !collapsedDates.contains(group.key) {
+                                    ForEach(group.value) { patient in
+                                        let isSelected = selectedPatients.contains(patient.id)
+                                        PatientRow(patient: patient,
+                                                   isSelectionMode: isSelectionMode,
+                                                   isSelected: isSelected,
+                                                   toggleSelection: {
+                                                       withAnimation {
+                                                           if isSelected {
+                                                               selectedPatients.remove(patient.id)
+                                                           } else {
+                                                               selectedPatients.insert(patient.id)
+                                                           }
+                                                       }
+                                                   },
+                                                   onSwipeSelect: {
+                                                       withAnimation {
+                                                           isSelectionMode = true
                                                            selectedPatients.insert(patient.id)
                                                        }
-                                                   }
-                                               },
-                                               onSwipeSelect: {
-                                                   withAnimation {
-                                                       isSelectionMode = true
-                                                       selectedPatients.insert(patient.id)
-                                                   }
-                                               },
-                                               onShowDatePicker: {
-                                                   singlePatientSurgeryDate = patient.surgeryDate ?? Date()
-                                                   selectedPatientForDate = patient
-                                               },
-                                               onShowTagSheet: {
-                                                   selectedPatientForTag = patient
-                                               })
-                                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                                }
-                                // Native move within the SAME section
-                                .onMove { source, destination in
-                                    movePatients(in: group.value, from: source, to: destination)
+                                                   },
+                                                   onShowDatePicker: {
+                                                       singlePatientSurgeryDate = patient.surgeryDate ?? Date()
+                                                       selectedPatientForDate = patient
+                                                   },
+                                                   onShowTagSheet: {
+                                                       selectedPatientForTag = patient
+                                                   })
+                                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                                    }
+                                    // Native move within the SAME section
+                                    .onMove { source, destination in
+                                        movePatients(in: group.value, from: source, to: destination)
+                                    }
                                 }
                             }
                         }
                     }
-                }
-                .listStyle(.plain)
-                .listSectionSpacing(0)
-                .contentMargins(.top, 0, for: .scrollContent)
-                .environment(\.defaultMinListRowHeight, 0)
-                .padding(.top, 4)
-                .animation(listInsertionAnimation, value: preOpListAnimationKey)
-                // Left swipe in selection mode exits it
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 30, coordinateSpace: .local)
-                        .onEnded { value in
-                            let isHorizontal = abs(value.translation.width) > abs(value.translation.height) * 1.5
-                            guard isHorizontal && isSelectionMode else { return }
-                            if value.translation.width < -40 {
-                                let impact = UIImpactFeedbackGenerator(style: .light)
-                                impact.impactOccurred()
-                                withAnimation {
-                                    isSelectionMode = false
-                                    selectedPatients.removeAll()
+                    .listStyle(.plain)
+                    .listSectionSpacing(0)
+                    .contentMargins(.top, 0, for: .scrollContent)
+                    .environment(\.defaultMinListRowHeight, 0)
+                    .padding(.top, 4)
+                    .animation(listInsertionAnimation, value: preOpListAnimationKey)
+                    // Left swipe in selection mode exits it
+                    .simultaneousGesture(
+                        DragGesture(minimumDistance: 30, coordinateSpace: .local)
+                            .onEnded { value in
+                                let isHorizontal = abs(value.translation.width) > abs(value.translation.height) * 1.5
+                                guard isHorizontal && isSelectionMode else { return }
+                                if value.translation.width < -40 {
+                                    let impact = UIImpactFeedbackGenerator(style: .light)
+                                    impact.impactOccurred()
+                                    withAnimation {
+                                        isSelectionMode = false
+                                        selectedPatients.removeAll()
+                                    }
                                 }
                             }
+                    )
+                    .onAppear {
+                        syncFromNavigationState(proxy: proxy)
+                        syncSelectedTag()
+                    }
+                    .onChange(of: searchText) { _, newValue in
+                        if navigationState.preOpSearchText != newValue {
+                            navigationState.preOpSearchText = newValue
                         }
-                )
-                .onAppear {
-                    syncFromNavigationState(proxy: proxy)
-                }
-                .onChange(of: searchText) { newValue in
-                    if navigationState.preOpSearchText != newValue {
-                        navigationState.preOpSearchText = newValue
+                        if !newValue.isEmpty, navigationState.preOpJumpTarget != nil {
+                            navigationState.preOpJumpTarget = nil
+                        }
                     }
-                    if !newValue.isEmpty, navigationState.preOpJumpTarget != nil {
-                        navigationState.preOpJumpTarget = nil
+                    .onChange(of: navigationState.preOpSearchText) { _, _ in
+                        syncFromNavigationState(proxy: proxy)
                     }
-                }
-                .onChange(of: navigationState.preOpSearchText) { _ in
-                    syncFromNavigationState(proxy: proxy)
-                }
-                .onChange(of: navigationState.preOpJumpTarget) { _ in
-                    syncFromNavigationState(proxy: proxy)
-                }
+                    .onChange(of: navigationState.preOpJumpTarget) { _, _ in
+                        syncFromNavigationState(proxy: proxy)
+                    }
+                    .onChange(of: tagFilterSnapshot.availableTags) { _, _ in
+                        syncSelectedTag()
+                    }
+                    .sheet(isPresented: $showTagFilterSheet) {
+                        TagFilterSheet(
+                            scopeTitle: "术前",
+                            allCount: tagFilterSnapshot.totalPatientCount,
+                            tags: tagFilterSnapshot.sheetTags,
+                            counts: tagFilterSnapshot.counts,
+                            selectedTag: selectedTag,
+                            isPinned: { tag in
+                                tagFilterStore.isPinned(tag, in: .preOp)
+                            },
+                            onSelect: { tag in
+                                selectedTag = tag
+                            },
+                            onTogglePinned: { tag in
+                                tagFilterStore.togglePinned(tag, in: .preOp)
+                            }
+                        )
+                        .presentationDetents([.fraction(0.45), .medium, .large])
+                    }
             }
             } // ScrollViewReader
             .toolbar(.hidden, for: .navigationBar)
@@ -442,6 +518,11 @@ struct PreOpView: View {
         if navigationState.preOpJumpTarget != nil {
             navigationState.preOpJumpTarget = nil
         }
+    }
+
+    private func syncSelectedTag() {
+        guard let selectedTag, !tagFilterSnapshot.availableTags.contains(selectedTag) else { return }
+        self.selectedTag = nil
     }
 
     private func sectionScrollID(for date: Date?) -> String {
