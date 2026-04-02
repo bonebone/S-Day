@@ -62,11 +62,13 @@ struct SettingsView: View {
                                 }
                             }
                             .pickerStyle(.segmented)
+                            .controlSize(.mini)
                             .labelsHidden()
-                            .frame(height: 32)
+                            .frame(height: 28)
                         }
-                        .frame(minHeight: 44)
-                        .padding(.vertical, 2)
+                        .frame(minHeight: 32)
+                        .listRowInsets(EdgeInsets(top: 2, leading: 16, bottom: 2, trailing: 16))
+                        .environment(\.defaultMinListRowHeight, 0)
 
                         HStack {
                             settingsRowLabel("标签布局", systemImage: "text.alignleft")
@@ -77,11 +79,13 @@ struct SettingsView: View {
                                 }
                             }
                             .pickerStyle(.segmented)
+                            .controlSize(.mini)
                             .labelsHidden()
-                            .frame(height: 32)
+                            .frame(height: 28)
                         }
-                        .frame(minHeight: 44)
-                        .padding(.vertical, 2)
+                        .frame(minHeight: 32)
+                        .listRowInsets(EdgeInsets(top: 2, leading: 16, bottom: 2, trailing: 16))
+                        .environment(\.defaultMinListRowHeight, 0)
                     }
 
                     Section(header: Text("隐私保护")) {

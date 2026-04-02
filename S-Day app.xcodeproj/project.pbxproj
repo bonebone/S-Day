@@ -87,9 +87,10 @@
 				};
 			};
 			buildConfigurationList = F61DAD472F5D3BB6002BF60F /* Build configuration list for PBXProject "S-Day app" */;
-			developmentRegion = en;
+			developmentRegion = zh-Hans;
 			hasScannedForEncodings = 0;
 			knownRegions = (
+				zh-Hans,
 				en,
 				Base,
 			);
@@ -257,6 +258,7 @@
 				DEVELOPMENT_TEAM = AC2SYY93D7;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDevelopmentRegion = zh-Hans;
 				INFOPLIST_KEY_CFBundleDisplayName = "S-Day";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "需要身份验证以保护病患隐私数据";
@@ -296,6 +298,7 @@
 				DEVELOPMENT_TEAM = AC2SYY93D7;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDevelopmentRegion = zh-Hans;
 				INFOPLIST_KEY_CFBundleDisplayName = "S-Day";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "需要身份验证以保护病患隐私数据";
