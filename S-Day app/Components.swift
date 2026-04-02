@@ -1,6 +1,13 @@
 import SwiftUI
 import SwiftData
 
+enum PatientTagDisplayMode: String, CaseIterable, Identifiable, Codable {
+    case followText = "紧跟文字"
+    case trailing = "靠右显示"
+
+    var id: String { rawValue }
+}
+
 struct TabHeaderContainer<Content: View>: View {
     let bottomPadding: CGFloat
     let onTap: (() -> Void)?
@@ -31,7 +38,10 @@ struct TabHeaderContainer<Content: View>: View {
 struct PatientRow: View {
     @Environment(\.modelContext) private var modelContext
     @ObservedObject private var colorStore = TagColorStore.shared
+    @AppStorage("patientTagDisplayMode") private var patientTagDisplayMode: PatientTagDisplayMode = .followText
     @Bindable var patient: Patient
+    @State private var isEditing = false
+    @State private var focusTrigger = 0
     private let rowVerticalPadding: CGFloat = 8
     private let selectionIndicatorSize: CGFloat = 20
     private let selectionIndicatorSpacing: CGFloat = 8
@@ -45,18 +55,43 @@ struct PatientRow: View {
     var onShowTagSheet: (() -> Void)? = nil
     
     var body: some View {
-        HStack(spacing: 0) {
-            TagTokenField(
-                text: $patient.rawInput,
-                tags: $patient.tags,
-                allTags: existingTags(),
-                placeholder: "输入新病人信息...",
-                autoFocusIfEmpty: true
-            )
+        HStack(alignment: .top, spacing: 0) {
+            Group {
+                if isEditing && !isSelectionMode {
+                    TagTokenField(
+                        text: $patient.rawInput,
+                        tags: $patient.tags,
+                        allTags: existingTags(),
+                        placeholder: "输入新病人信息...",
+                        autoFocus: true,
+                        focusTrigger: focusTrigger,
+                        onEditingChanged: { editing in
+                            if !editing {
+                                withAnimation(.snappy(duration: 0.22, extraBounce: 0)) {
+                                    isEditing = false
+                                }
+                            }
+                        }
+                    )
+                } else {
+                    PatientRowDisplayContent(
+                        text: patient.rawInput,
+                        tags: patient.tags,
+                        displayMode: patientTagDisplayMode
+                    )
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        guard !isSelectionMode else { return }
+                        focusTrigger += 1
+                        withAnimation(.snappy(duration: 0.22, extraBounce: 0)) {
+                            isEditing = true
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.leading, isSelectionMode ? selectionIndicatorSize + selectionIndicatorSpacing : 0)
             .disabled(isSelectionMode)
-            
-            Spacer()
         }
         .padding(.vertical, rowVerticalPadding)
         .overlay(alignment: .leading) {
@@ -73,6 +108,7 @@ struct PatientRow: View {
                 toggleSelection?()
             }
         }
+        .animation(.snappy(duration: 0.22, extraBounce: 0), value: isEditing)
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if !isSelectionMode {
                 Button(role: .destructive) {
@@ -100,6 +136,10 @@ struct PatientRow: View {
                 .tint(.orange)
             }
         }
+        .onChange(of: isSelectionMode) { _, newValue in
+            guard newValue, isEditing else { return }
+            isEditing = false
+        }
         // Row-level swipe gesture: right-swipe enters selection and pre-selects this row
         .simultaneousGesture(
             DragGesture(minimumDistance: 30, coordinateSpace: .local)
@@ -114,6 +154,304 @@ struct PatientRow: View {
                     }
                 }
         )
+    }
+}
+
+private struct PatientRowDisplayContent: View {
+    let text: String
+    let tags: [String]
+    let displayMode: PatientTagDisplayMode
+    private let tagHorizontalPadding: CGFloat = 8
+    private let tagVerticalPadding: CGFloat = 5
+
+    var body: some View {
+        Group {
+            switch displayMode {
+            case .followText:
+                PatientInlineTagLayout() {
+                    patientText
+                    ForEach(tags, id: \.self) { tag in
+                        tagChip(tag)
+                    }
+                }
+            case .trailing:
+                PatientTrailingTagLayout() {
+                    patientText
+                    ForEach(tags, id: \.self) { tag in
+                        tagChip(tag)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var patientText: some View {
+        Text(text.isEmpty ? "未填写病人信息" : text)
+            .foregroundStyle(text.isEmpty ? .secondary : .primary)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .frame(minHeight: 22, alignment: .leading)
+    }
+
+    private func tagChip(_ tag: String) -> some View {
+        Text(tag)
+            .font(.caption)
+            .foregroundColor(Color.tagTextColor(for: tag))
+            .padding(.horizontal, tagHorizontalPadding)
+            .padding(.vertical, tagVerticalPadding)
+            .background(Color.tagColor(for: tag))
+            .cornerRadius(12)
+    }
+}
+
+private struct PatientInlineTagLayout: Layout {
+    private let itemSpacing: CGFloat = 6
+    private let textToTagSpacing: CGFloat = 12
+    private let lineSpacing: CGFloat = 6
+    private let truncationThreshold: CGFloat = 0.7
+
+    struct CacheData {
+        var frames: [CGRect] = []
+        var size: CGSize = .zero
+    }
+
+    func makeCache(subviews: Subviews) -> CacheData {
+        CacheData()
+    }
+
+    func updateCache(_ cache: inout CacheData, subviews: Subviews) {
+        cache = CacheData()
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout CacheData) -> CGSize {
+        let layout = computeLayout(proposal: proposal, subviews: subviews)
+        cache = layout
+        return layout.size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout CacheData) {
+        let layout = cache.frames.isEmpty ? computeLayout(proposal: proposal, subviews: subviews) : cache
+        for (index, subview) in subviews.enumerated() where index < layout.frames.count {
+            let frame = layout.frames[index]
+            subview.place(
+                at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
+                proposal: ProposedViewSize(width: frame.width, height: frame.height)
+            )
+        }
+    }
+
+    private func computeLayout(proposal: ProposedViewSize, subviews: Subviews) -> CacheData {
+        guard let textSubview = subviews.first else {
+            return CacheData()
+        }
+
+        let maxWidth = proposal.width ?? textSubview.sizeThatFits(.unspecified).width
+        let textNaturalSize = textSubview.sizeThatFits(.unspecified)
+        let tagSubviews = Array(subviews.dropFirst())
+        let tagSizes = tagSubviews.map { $0.sizeThatFits(.unspecified) }
+        let totalTagWidth = tagSizes.reduce(0) { $0 + $1.width }
+        let totalTagSpacing = CGFloat(max(tagSizes.count - 1, 0)) * itemSpacing
+        let inlineTagFootprint = totalTagWidth + totalTagSpacing
+        let availableTextWidth = max(maxWidth - inlineTagFootprint - (tagSizes.isEmpty ? 0 : textToTagSpacing), 0)
+        let shouldKeepSingleLine = tagSizes.isEmpty
+            || availableTextWidth / max(textNaturalSize.width, 1) >= truncationThreshold
+
+        if shouldKeepSingleLine {
+            return inlineLayout(
+                maxWidth: maxWidth,
+                textSubview: textSubview,
+                textNaturalSize: textNaturalSize,
+                tagSizes: tagSizes
+            )
+        } else {
+            return wrappedLayout(
+                maxWidth: maxWidth,
+                textSubview: textSubview,
+                tagSizes: tagSizes
+            )
+        }
+    }
+
+    private func inlineLayout(
+        maxWidth: CGFloat,
+        textSubview: LayoutSubview,
+        textNaturalSize: CGSize,
+        tagSizes: [CGSize]
+    ) -> CacheData {
+        let inlineTagFootprint = tagSizes.reduce(0) { $0 + $1.width } + CGFloat(max(tagSizes.count - 1, 0)) * itemSpacing
+        let proposedTextWidth = max(maxWidth - inlineTagFootprint - (tagSizes.isEmpty ? 0 : textToTagSpacing), 0)
+        let measuredTextSize = textSubview.sizeThatFits(ProposedViewSize(width: proposedTextWidth, height: nil))
+        let textWidth = min(textNaturalSize.width, proposedTextWidth)
+        let rowHeight = max(
+            measuredTextSize.height,
+            tagSizes.map(\.height).max() ?? 0
+        )
+
+        var frames: [CGRect] = []
+        frames.append(CGRect(x: 0, y: 0, width: textWidth, height: rowHeight))
+
+        var currentX = textWidth + (tagSizes.isEmpty ? 0 : textToTagSpacing)
+        for tagSize in tagSizes {
+            frames.append(CGRect(
+                x: currentX,
+                y: (rowHeight - tagSize.height) / 2,
+                width: tagSize.width,
+                height: tagSize.height
+            ))
+            currentX += tagSize.width + itemSpacing
+        }
+
+        return CacheData(
+            frames: frames,
+            size: CGSize(width: maxWidth, height: rowHeight)
+        )
+    }
+
+    private func wrappedLayout(
+        maxWidth: CGFloat,
+        textSubview: LayoutSubview,
+        tagSizes: [CGSize]
+    ) -> CacheData {
+        let textSize = textSubview.sizeThatFits(ProposedViewSize(width: maxWidth, height: nil))
+        var frames: [CGRect] = [
+            CGRect(x: 0, y: 0, width: maxWidth, height: textSize.height)
+        ]
+
+        var currentX: CGFloat = 0
+        var currentY = textSize.height + lineSpacing
+        var currentLineHeight: CGFloat = 0
+
+        for tagSize in tagSizes {
+            if currentX > 0, currentX + tagSize.width > maxWidth {
+                currentX = 0
+                currentY += currentLineHeight + itemSpacing
+                currentLineHeight = 0
+            }
+
+            frames.append(CGRect(x: currentX, y: currentY, width: tagSize.width, height: tagSize.height))
+            currentX += tagSize.width + itemSpacing
+            currentLineHeight = max(currentLineHeight, tagSize.height)
+        }
+
+        return CacheData(
+            frames: frames,
+            size: CGSize(width: maxWidth, height: currentY + currentLineHeight)
+        )
+    }
+}
+
+private struct PatientTrailingTagLayout: Layout {
+    private let itemSpacing: CGFloat = 6
+    private let lineSpacing: CGFloat = 6
+    private let truncationThreshold: CGFloat = 0.7
+
+    struct CacheData {
+        var frames: [CGRect] = []
+        var size: CGSize = .zero
+    }
+
+    func makeCache(subviews: Subviews) -> CacheData {
+        CacheData()
+    }
+
+    func updateCache(_ cache: inout CacheData, subviews: Subviews) {
+        cache = CacheData()
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout CacheData) -> CGSize {
+        let layout = computeLayout(proposal: proposal, subviews: subviews)
+        cache = layout
+        return layout.size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout CacheData) {
+        let layout = cache.frames.isEmpty ? computeLayout(proposal: proposal, subviews: subviews) : cache
+        for (index, subview) in subviews.enumerated() where index < layout.frames.count {
+            let frame = layout.frames[index]
+            subview.place(
+                at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
+                proposal: ProposedViewSize(width: frame.width, height: frame.height)
+            )
+        }
+    }
+
+    private func computeLayout(proposal: ProposedViewSize, subviews: Subviews) -> CacheData {
+        guard let textSubview = subviews.first else {
+            return CacheData()
+        }
+
+        let maxWidth = proposal.width ?? textSubview.sizeThatFits(.unspecified).width
+        let textNaturalSize = textSubview.sizeThatFits(.unspecified)
+        let tagSizes = Array(subviews.dropFirst()).map { $0.sizeThatFits(.unspecified) }
+        let tagRowWidth = tagSizes.reduce(0) { $0 + $1.width } + CGFloat(max(tagSizes.count - 1, 0)) * itemSpacing
+        let availableTextWidth = max(maxWidth - tagRowWidth - (tagSizes.isEmpty ? 0 : itemSpacing), 0)
+        let shouldKeepSingleLine = tagSizes.isEmpty
+            || availableTextWidth / max(textNaturalSize.width, 1) >= truncationThreshold
+
+        if shouldKeepSingleLine {
+            return inlineLayout(
+                maxWidth: maxWidth,
+                textSubview: textSubview,
+                tagSizes: tagSizes
+            )
+        } else {
+            return wrappedLayout(
+                maxWidth: maxWidth,
+                textSubview: textSubview,
+                tagSizes: tagSizes
+            )
+        }
+    }
+
+    private func inlineLayout(
+        maxWidth: CGFloat,
+        textSubview: LayoutSubview,
+        tagSizes: [CGSize]
+    ) -> CacheData {
+        let tagRowWidth = tagSizes.reduce(0) { $0 + $1.width } + CGFloat(max(tagSizes.count - 1, 0)) * itemSpacing
+        let textWidth = max(maxWidth - tagRowWidth - (tagSizes.isEmpty ? 0 : itemSpacing), 0)
+        let measuredTextSize = textSubview.sizeThatFits(ProposedViewSize(width: textWidth, height: nil))
+        let rowHeight = max(measuredTextSize.height, tagSizes.map(\.height).max() ?? 0)
+
+        var frames: [CGRect] = [
+            CGRect(x: 0, y: 0, width: textWidth, height: rowHeight)
+        ]
+
+        var currentX = maxWidth - tagRowWidth
+        for tagSize in tagSizes {
+            frames.append(CGRect(
+                x: currentX,
+                y: (rowHeight - tagSize.height) / 2,
+                width: tagSize.width,
+                height: tagSize.height
+            ))
+            currentX += tagSize.width + itemSpacing
+        }
+
+        return CacheData(frames: frames, size: CGSize(width: maxWidth, height: rowHeight))
+    }
+
+    private func wrappedLayout(
+        maxWidth: CGFloat,
+        textSubview: LayoutSubview,
+        tagSizes: [CGSize]
+    ) -> CacheData {
+        let textSize = textSubview.sizeThatFits(ProposedViewSize(width: maxWidth, height: nil))
+        let rowWidth = tagSizes.reduce(0) { $0 + $1.width } + CGFloat(max(tagSizes.count - 1, 0)) * itemSpacing
+        var frames: [CGRect] = [
+            CGRect(x: 0, y: 0, width: maxWidth, height: textSize.height)
+        ]
+
+        var currentX = max(maxWidth - rowWidth, 0)
+        let currentY = textSize.height + lineSpacing
+        for tagSize in tagSizes {
+            frames.append(CGRect(x: currentX, y: currentY, width: tagSize.width, height: tagSize.height))
+            currentX += tagSize.width + itemSpacing
+        }
+
+        let totalHeight = tagSizes.isEmpty ? textSize.height : currentY + (tagSizes.map(\.height).max() ?? 0)
+        return CacheData(frames: frames, size: CGSize(width: maxWidth, height: totalHeight))
     }
 }
 
@@ -421,8 +759,11 @@ struct TagTokenField: View {
     var allTags: [String]
     var placeholder: String
     var autoFocusIfEmpty: Bool = false
+    var autoFocus: Bool = false
+    var focusTrigger: Int = 0
     var keepFocusOnSubmit: Bool = false
     var onSubmit: (() -> Void)? = nil
+    var onEditingChanged: ((Bool) -> Void)? = nil
 
     @State private var isFocused: Bool = false
 
@@ -434,6 +775,8 @@ struct TagTokenField: View {
                 placeholder: placeholder,
                 isFocused: $isFocused,
                 autoFocusIfEmpty: autoFocusIfEmpty,
+                autoFocus: autoFocus,
+                focusTrigger: focusTrigger,
                 keepFocusOnSubmit: keepFocusOnSubmit,
                 onBackspaceWhenEmpty: {
                     if !tags.isEmpty {
@@ -457,7 +800,7 @@ struct TagTokenField: View {
                     onSubmit?()
                 }
             )
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 22, alignment: .leading)
 
             // Confirmed tag capsules - appear below the text in order
             if !tags.isEmpty {
@@ -482,9 +825,6 @@ struct TagTokenField: View {
                             guard isFocused else { return }
                             tags.removeAll { $0 == tag }
                             UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                            // End editing so the cursor stops blinking
-                            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder),
-                                                            to: nil, from: nil, for: nil)
                         }
                     }
                 }
@@ -529,6 +869,9 @@ struct TagTokenField: View {
                 }
             }
         }
+        .onChange(of: isFocused) { _, newValue in
+            onEditingChanged?(newValue)
+        }
     }
 }
 
@@ -539,6 +882,8 @@ struct BackspaceDetectingTextField: UIViewRepresentable {
     var placeholder: String
     @Binding var isFocused: Bool
     var autoFocusIfEmpty: Bool
+    var autoFocus: Bool
+    var focusTrigger: Int
     var keepFocusOnSubmit: Bool
     var onBackspaceWhenEmpty: () -> Void
     var onTagExtracted: (String) -> Void   // synchronous: called when #tag is committed by space
@@ -574,14 +919,26 @@ struct BackspaceDetectingTextField: UIViewRepresentable {
             uiView.text = text
         }
         uiView.placeholder = placeholder
+        if autoFocus && context.coordinator.lastFocusTrigger != focusTrigger {
+            context.coordinator.lastFocusTrigger = focusTrigger
+            DispatchQueue.main.async {
+                uiView.becomeFirstResponder()
+                let endPos = uiView.endOfDocument
+                uiView.selectedTextRange = uiView.textRange(from: endPos, to: endPos)
+            }
+        }
     }
 
     class Coordinator: NSObject, UITextFieldDelegate {
         var parent: BackspaceDetectingTextField
+        var lastFocusTrigger: Int
         // Pre-compiled regexes for performance
         private let endTagRegex = try! NSRegularExpression(pattern: "#([^\\s#]+)$")
 
-        init(_ parent: BackspaceDetectingTextField) { self.parent = parent }
+        init(_ parent: BackspaceDetectingTextField) {
+            self.parent = parent
+            self.lastFocusTrigger = -1
+        }
 
         // Synchronously intercept space key — this is where tag-to-capsule conversion happens
         func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange,

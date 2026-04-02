@@ -20,6 +20,7 @@ struct SettingsView: View {
     
     // Appearance state
     @AppStorage("appAppearance") private var appearance: AppAppearance = .system
+    @AppStorage("patientTagDisplayMode") private var patientTagDisplayMode: PatientTagDisplayMode = .followText
     
     // Privacy state
     @AppStorage("requireBiometrics") private var requireBiometrics: Bool = false
@@ -52,12 +53,35 @@ struct SettingsView: View {
                     }
                     
                     Section(header: Text("外观")) {
-                        Picker("主题", selection: $appearance) {
-                            ForEach(AppAppearance.allCases) { style in
-                                Text(style.rawValue).tag(style)
+                        HStack {
+                            settingsRowLabel("界面颜色", systemImage: "paintpalette")
+                                .frame(width: 110, alignment: .leading)
+                            Picker("界面颜色", selection: $appearance) {
+                                ForEach(AppAppearance.allCases) { style in
+                                    Text(style.rawValue).tag(style)
+                                }
                             }
+                            .pickerStyle(.segmented)
+                            .labelsHidden()
+                            .frame(height: 32)
                         }
-                        .pickerStyle(.segmented)
+                        .frame(minHeight: 44)
+                        .padding(.vertical, 2)
+
+                        HStack {
+                            settingsRowLabel("标签布局", systemImage: "text.alignleft")
+                                .frame(width: 110, alignment: .leading)
+                            Picker("标签布局", selection: $patientTagDisplayMode) {
+                                ForEach(PatientTagDisplayMode.allCases) { mode in
+                                    Text(mode.rawValue).tag(mode)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .labelsHidden()
+                            .frame(height: 32)
+                        }
+                        .frame(minHeight: 44)
+                        .padding(.vertical, 2)
                     }
 
                     Section(header: Text("隐私保护")) {
@@ -226,6 +250,17 @@ struct SettingsView: View {
         }
         let impact = UIImpactFeedbackGenerator(style: .heavy)
         impact.impactOccurred()
+    }
+
+    @ViewBuilder
+    private func settingsRowLabel(_ title: String, systemImage: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: systemImage)
+                .foregroundColor(.blue)
+            Text(title)
+                .foregroundColor(.primary)
+        }
+        .font(.body)
     }
 }
 

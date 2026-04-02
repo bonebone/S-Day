@@ -18,6 +18,7 @@ struct SDayExportData: Codable {
     var patients: [ExportedPatient]
     var tagColors: [String: Int]
     var appAppearance: AppAppearance?
+    var patientTagDisplayMode: PatientTagDisplayMode?
     var requireBiometrics: Bool?
 }
 
@@ -62,6 +63,8 @@ class DataTransferManager {
         
         let rawAppearance = UserDefaults.standard.string(forKey: "appAppearance") ?? AppAppearance.system.rawValue
         let currentAppearance = AppAppearance(rawValue: rawAppearance) ?? .system
+        let rawPatientTagDisplayMode = UserDefaults.standard.string(forKey: "patientTagDisplayMode") ?? PatientTagDisplayMode.followText.rawValue
+        let currentPatientTagDisplayMode = PatientTagDisplayMode(rawValue: rawPatientTagDisplayMode) ?? .followText
         
         // Use UserDefaults to retrieve toggle state
         let currentRequireBiometrics = UserDefaults.standard.bool(forKey: "requireBiometrics")
@@ -70,6 +73,7 @@ class DataTransferManager {
             patients: exportedPatients,
             tagColors: TagColorStore.shared.colorIndices,
             appAppearance: currentAppearance,
+            patientTagDisplayMode: currentPatientTagDisplayMode,
             requireBiometrics: currentRequireBiometrics
         )
     }
@@ -87,6 +91,11 @@ class DataTransferManager {
         TagColorStore.shared.colorIndices = exportData.tagColors
         if let importedAppearance = exportData.appAppearance {
             UserDefaults.standard.set(importedAppearance.rawValue, forKey: "appAppearance")
+        }
+        if let importedPatientTagDisplayMode = exportData.patientTagDisplayMode {
+            UserDefaults.standard.set(importedPatientTagDisplayMode.rawValue, forKey: "patientTagDisplayMode")
+        } else {
+            UserDefaults.standard.set(PatientTagDisplayMode.followText.rawValue, forKey: "patientTagDisplayMode")
         }
         if let importedBiometrics = exportData.requireBiometrics {
             UserDefaults.standard.set(importedBiometrics, forKey: "requireBiometrics")
