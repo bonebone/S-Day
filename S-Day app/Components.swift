@@ -45,6 +45,7 @@ struct PatientRow: View {
     private let rowVerticalPadding: CGFloat = 8
     private let selectionIndicatorSize: CGFloat = 20
     private let selectionIndicatorSpacing: CGFloat = 8
+    private let tagMutationAnimation = Animation.easeInOut(duration: 0.2)
     
     // Optional Selection support
     var isSelectionMode: Bool = false
@@ -56,39 +57,26 @@ struct PatientRow: View {
     
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
-            Group {
-                if isEditing && !isSelectionMode {
-                    TagTokenField(
-                        text: $patient.rawInput,
-                        tags: $patient.tags,
-                        allTags: existingTags(),
-                        placeholder: "输入新病人信息...",
-                        autoFocus: true,
-                        focusTrigger: focusTrigger,
-                        onEditingChanged: { editing in
-                            if !editing {
-                                withAnimation(.snappy(duration: 0.22, extraBounce: 0)) {
-                                    isEditing = false
-                                }
-                            }
-                        }
-                    )
-                } else {
-                    PatientRowDisplayContent(
-                        text: patient.rawInput,
-                        tags: patient.tags,
-                        displayMode: patientTagDisplayMode
-                    )
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        guard !isSelectionMode else { return }
-                        focusTrigger += 1
-                        withAnimation(.snappy(duration: 0.22, extraBounce: 0)) {
-                            isEditing = true
-                        }
+            PatientRowContent(
+                text: $patient.rawInput,
+                tags: $patient.tags,
+                allTags: existingTags(),
+                displayMode: patientTagDisplayMode,
+                isEditing: isEditing && !isSelectionMode,
+                focusTrigger: focusTrigger,
+                onStartEditing: {
+                    guard !isSelectionMode else { return }
+                    focusTrigger += 1
+                    withAnimation(.snappy(duration: 0.28, extraBounce: 0)) {
+                        isEditing = true
+                    }
+                },
+                onEndEditing: {
+                    withAnimation(.snappy(duration: 0.24, extraBounce: 0)) {
+                        isEditing = false
                     }
                 }
-            }
+            )
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.leading, isSelectionMode ? selectionIndicatorSize + selectionIndicatorSpacing : 0)
             .disabled(isSelectionMode)
@@ -108,7 +96,8 @@ struct PatientRow: View {
                 toggleSelection?()
             }
         }
-        .animation(.snappy(duration: 0.22, extraBounce: 0), value: isEditing)
+        .animation(.snappy(duration: 0.28, extraBounce: 0), value: isEditing)
+        .animation(tagMutationAnimation, value: patient.tags)
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if !isSelectionMode {
                 Button(role: .destructive) {
@@ -157,59 +146,207 @@ struct PatientRow: View {
     }
 }
 
-private struct PatientRowDisplayContent: View {
-    let text: String
-    let tags: [String]
+private struct PatientRowContent: View {
+    @Binding var text: String
+    @Binding var tags: [String]
+    let allTags: [String]
     let displayMode: PatientTagDisplayMode
-    private let tagHorizontalPadding: CGFloat = 8
-    private let tagVerticalPadding: CGFloat = 5
+    let isEditing: Bool
+    let focusTrigger: Int
+    let onStartEditing: () -> Void
+    let onEndEditing: () -> Void
+
+    @State private var isFocused = false
+    @State private var refocusOffset = 0
+
+    private let textRowHeight: CGFloat = patientRowTextHeight
+    private let tagMutationAnimation = Animation.easeInOut(duration: 0.2)
+    private let tagRemovalAnimation = Animation.easeOut(duration: 0.16)
 
     var body: some View {
-        Group {
-            switch displayMode {
-            case .followText:
-                PatientInlineTagLayout() {
-                    patientText
-                    ForEach(tags, id: \.self) { tag in
-                        tagChip(tag)
+        VStack(alignment: .leading, spacing: 4) {
+            PatientTagTransitionLayout(
+                displayMode: displayMode,
+                progress: isEditing ? 1 : 0,
+                textNaturalWidth: naturalTextWidth(for: displayText)
+            ) {
+                textLayer
+
+                ForEach(tags, id: \.self) { tag in
+                    PatientTagChip(
+                        tag: tag,
+                        horizontalPadding: 8,
+                        verticalPadding: 5,
+                        deleteRevealProgress: isEditing ? 1 : 0,
+                        animateOnAppear: true
+                    )
+                    .contentShape(Rectangle())
+                    .transition(.opacity)
+                    .onTapGesture {
+                        guard isEditing else { return }
+                        withAnimation(tagRemovalAnimation) {
+                            tags.removeAll { $0 == tag }
+                        }
+                        refocusOffset += 1
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
                     }
                 }
-            case .trailing:
-                PatientTrailingTagLayout() {
-                    patientText
-                    ForEach(tags, id: \.self) { tag in
-                        tagChip(tag)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .animation(tagMutationAnimation, value: tags)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                guard !isEditing else { return }
+                onStartEditing()
+            }
+
+            if isEditing, let query = activeTagQuery(for: text) {
+                let suggestions = orderedSuggestedTags(allTags: allTags, excluding: tags, query: query)
+                if !suggestions.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(suggestions, id: \.self) { suggestion in
+                                Button {
+                                    let tagRegex = try! NSRegularExpression(pattern: "#([^\\s#]*)$")
+                                    if let match = tagRegex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+                                       let fullRange = Range(match.range, in: text) {
+                                        text.replaceSubrange(fullRange, with: "")
+                                    }
+                                    if !tags.contains(suggestion) {
+                                        withAnimation(tagMutationAnimation) {
+                                            tags.append(suggestion)
+                                        }
+                                        markTagsUsed([suggestion])
+                                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                    }
+                                    refocusOffset += 1
+                                } label: {
+                                    Text(suggestion)
+                                        .font(.caption2)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(Color.tagColor(for: suggestion).opacity(0.15))
+                                        .foregroundColor(Color.tagColor(for: suggestion))
+                                        .clipShape(Capsule())
+                                        .overlay(
+                                            Capsule()
+                                                .stroke(Color.tagColor(for: suggestion).opacity(0.5), lineWidth: 1)
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
                     }
                 }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .onChange(of: isFocused) { _, newValue in
+            guard isEditing, !newValue else { return }
+            onEndEditing()
+        }
     }
 
-    private var patientText: some View {
-        Text(text.isEmpty ? "未填写病人信息" : text)
-            .foregroundStyle(text.isEmpty ? .secondary : .primary)
-            .lineLimit(1)
-            .truncationMode(.tail)
-            .frame(minHeight: 22, alignment: .leading)
+    private var displayText: String {
+        text.isEmpty ? "未填写病人信息" : text
     }
 
-    private func tagChip(_ tag: String) -> some View {
-        Text(tag)
-            .font(.caption)
-            .foregroundColor(Color.tagTextColor(for: tag))
-            .padding(.horizontal, tagHorizontalPadding)
-            .padding(.vertical, tagVerticalPadding)
-            .background(Color.tagColor(for: tag))
-            .cornerRadius(12)
+    private var textLayer: some View {
+        ZStack(alignment: .leading) {
+            Text(displayText)
+                .foregroundStyle(text.isEmpty ? .secondary : .primary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .opacity(isEditing ? 0 : 1)
+                .animation(nil, value: isEditing)
+
+            BackspaceDetectingTextField(
+                text: $text,
+                placeholder: "输入新病人信息...",
+                isFocused: $isFocused,
+                autoFocusIfEmpty: false,
+                autoFocus: isEditing,
+                focusTrigger: focusTrigger + refocusOffset,
+                keepFocusOnSubmit: false,
+                onBackspaceWhenEmpty: {
+                    if !tags.isEmpty {
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        withAnimation(tagRemovalAnimation) {
+                            tags.removeLast()
+                        }
+                    }
+                },
+                onTagExtracted: { tag in
+                    registerTagsIfNeeded([tag])
+                    if !tags.contains(tag) {
+                        withAnimation(tagMutationAnimation) {
+                            tags.append(tag)
+                        }
+                        markTagsUsed([tag])
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    }
+                },
+                onSubmit: {
+                    extractAndStripTags(text: &text, tags: &tags)
+                    onEndEditing()
+                }
+            )
+            .opacity(isEditing ? 1 : 0.001)
+            .allowsHitTesting(isEditing)
+            .animation(nil, value: isEditing)
+        }
+        .frame(maxWidth: .infinity, minHeight: textRowHeight, alignment: .leading)
     }
 }
 
-private struct PatientInlineTagLayout: Layout {
+private struct PatientTagChip: View {
+    let tag: String
+    let horizontalPadding: CGFloat
+    let verticalPadding: CGFloat
+    var deleteRevealProgress: CGFloat = 0
+    var animateOnAppear: Bool = false
+
+    @State private var hasAppeared = false
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Text(tag)
+                .font(.caption)
+
+            Image(systemName: "xmark")
+                .font(.system(size: 8, weight: .bold))
+                .opacity(deleteRevealProgress)
+                .frame(width: 11 * deleteRevealProgress, alignment: .trailing)
+        }
+        .foregroundColor(Color.tagTextColor(for: tag))
+        .padding(.horizontal, horizontalPadding)
+        .padding(.vertical, verticalPadding)
+        .background(Color.tagColor(for: tag))
+        .cornerRadius(12)
+        .opacity(animateOnAppear ? (hasAppeared ? 1 : 0) : 1)
+        .onAppear {
+            guard animateOnAppear, !hasAppeared else { return }
+            withAnimation(.easeOut(duration: 0.16)) {
+                hasAppeared = true
+            }
+        }
+    }
+}
+
+private struct PatientTagTransitionLayout: Layout, Animatable {
+    let displayMode: PatientTagDisplayMode
+    var progress: CGFloat
+    let textNaturalWidth: CGFloat
+
     private let itemSpacing: CGFloat = 6
     private let textToTagSpacing: CGFloat = 12
-    private let lineSpacing: CGFloat = 6
-    private let truncationThreshold: CGFloat = 0.7
+    private let rowLineSpacing: CGFloat = 6
+    private let truncationThreshold: CGFloat = 0.8
+    private let textRowHeight: CGFloat = patientRowTextHeight
+
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
 
     struct CacheData {
         var frames: [CGRect] = []
@@ -246,80 +383,101 @@ private struct PatientInlineTagLayout: Layout {
             return CacheData()
         }
 
-        let maxWidth = proposal.width ?? textSubview.sizeThatFits(.unspecified).width
-        let textNaturalSize = textSubview.sizeThatFits(.unspecified)
+        let maxWidth = proposal.width ?? max(textNaturalWidth, textSubview.sizeThatFits(.unspecified).width)
         let tagSubviews = Array(subviews.dropFirst())
         let tagSizes = tagSubviews.map { $0.sizeThatFits(.unspecified) }
+        let displayLayout = displayLayout(maxWidth: maxWidth, tagSizes: tagSizes)
+        let editLayout = editLayout(maxWidth: maxWidth, tagSizes: tagSizes)
+        var frames: [CGRect] = []
+        if let displayTextFrame = displayLayout.frames.first, let editTextFrame = editLayout.frames.first {
+            frames.append(progress > 0 ? editTextFrame : displayTextFrame)
+        }
+
+        let displayTagFrames = displayLayout.frames.dropFirst()
+        let editTagFrames = editLayout.frames.dropFirst()
+        frames.append(contentsOf: zip(displayTagFrames, editTagFrames).map { start, end in
+            interpolatedFrame(from: start, to: end, progress: progress)
+        })
+
+        return CacheData(
+            frames: frames,
+            size: CGSize(
+                width: maxWidth,
+                height: interpolate(displayLayout.size.height, editLayout.size.height, progress: progress)
+            )
+        )
+    }
+
+    private func displayLayout(maxWidth: CGFloat, tagSizes: [CGSize]) -> CacheData {
+        switch displayMode {
+        case .followText:
+            return displayFollowTextLayout(maxWidth: maxWidth, tagSizes: tagSizes)
+        case .trailing:
+            return displayTrailingLayout(maxWidth: maxWidth, tagSizes: tagSizes)
+        }
+    }
+
+    private func displayFollowTextLayout(maxWidth: CGFloat, tagSizes: [CGSize]) -> CacheData {
         let totalTagWidth = tagSizes.reduce(0) { $0 + $1.width }
         let totalTagSpacing = CGFloat(max(tagSizes.count - 1, 0)) * itemSpacing
         let inlineTagFootprint = totalTagWidth + totalTagSpacing
         let availableTextWidth = max(maxWidth - inlineTagFootprint - (tagSizes.isEmpty ? 0 : textToTagSpacing), 0)
         let shouldKeepSingleLine = tagSizes.isEmpty
-            || availableTextWidth / max(textNaturalSize.width, 1) >= truncationThreshold
+            || availableTextWidth / max(textNaturalWidth, 1) >= truncationThreshold
 
         if shouldKeepSingleLine {
-            return inlineLayout(
-                maxWidth: maxWidth,
-                textSubview: textSubview,
-                textNaturalSize: textNaturalSize,
-                tagSizes: tagSizes
-            )
-        } else {
-            return wrappedLayout(
-                maxWidth: maxWidth,
-                textSubview: textSubview,
-                tagSizes: tagSizes
-            )
-        }
-    }
+            let textWidth = min(textNaturalWidth, availableTextWidth)
+            let rowHeight = max(textRowHeight, tagSizes.map(\.height).max() ?? 0)
+            var frames = [CGRect(x: 0, y: 0, width: textWidth, height: rowHeight)]
+            var currentX = textWidth + (tagSizes.isEmpty ? 0 : textToTagSpacing)
 
-    private func inlineLayout(
-        maxWidth: CGFloat,
-        textSubview: LayoutSubview,
-        textNaturalSize: CGSize,
-        tagSizes: [CGSize]
-    ) -> CacheData {
-        let inlineTagFootprint = tagSizes.reduce(0) { $0 + $1.width } + CGFloat(max(tagSizes.count - 1, 0)) * itemSpacing
-        let proposedTextWidth = max(maxWidth - inlineTagFootprint - (tagSizes.isEmpty ? 0 : textToTagSpacing), 0)
-        let measuredTextSize = textSubview.sizeThatFits(ProposedViewSize(width: proposedTextWidth, height: nil))
-        let textWidth = min(textNaturalSize.width, proposedTextWidth)
-        let rowHeight = max(
-            measuredTextSize.height,
-            tagSizes.map(\.height).max() ?? 0
-        )
+            for tagSize in tagSizes {
+                frames.append(CGRect(
+                    x: currentX,
+                    y: (rowHeight - tagSize.height) / 2,
+                    width: tagSize.width,
+                    height: tagSize.height
+                ))
+                currentX += tagSize.width + itemSpacing
+            }
 
-        var frames: [CGRect] = []
-        frames.append(CGRect(x: 0, y: 0, width: textWidth, height: rowHeight))
-
-        var currentX = textWidth + (tagSizes.isEmpty ? 0 : textToTagSpacing)
-        for tagSize in tagSizes {
-            frames.append(CGRect(
-                x: currentX,
-                y: (rowHeight - tagSize.height) / 2,
-                width: tagSize.width,
-                height: tagSize.height
-            ))
-            currentX += tagSize.width + itemSpacing
+            return CacheData(frames: frames, size: CGSize(width: maxWidth, height: rowHeight))
         }
 
-        return CacheData(
-            frames: frames,
-            size: CGSize(width: maxWidth, height: rowHeight)
-        )
+        return displayWrappedLeadingLayout(maxWidth: maxWidth, tagSizes: tagSizes)
     }
 
-    private func wrappedLayout(
-        maxWidth: CGFloat,
-        textSubview: LayoutSubview,
-        tagSizes: [CGSize]
-    ) -> CacheData {
-        let textSize = textSubview.sizeThatFits(ProposedViewSize(width: maxWidth, height: nil))
-        var frames: [CGRect] = [
-            CGRect(x: 0, y: 0, width: maxWidth, height: textSize.height)
-        ]
+    private func displayTrailingLayout(maxWidth: CGFloat, tagSizes: [CGSize]) -> CacheData {
+        let tagRowWidth = tagSizes.reduce(0) { $0 + $1.width } + CGFloat(max(tagSizes.count - 1, 0)) * itemSpacing
+        let availableTextWidth = max(maxWidth - tagRowWidth - (tagSizes.isEmpty ? 0 : itemSpacing), 0)
+        let shouldKeepSingleLine = tagSizes.isEmpty
+            || availableTextWidth / max(textNaturalWidth, 1) >= truncationThreshold
 
+        if shouldKeepSingleLine {
+            let rowHeight = max(textRowHeight, tagSizes.map(\.height).max() ?? 0)
+            var frames = [CGRect(x: 0, y: 0, width: availableTextWidth, height: rowHeight)]
+            var currentX = max(maxWidth - tagRowWidth, 0)
+
+            for tagSize in tagSizes {
+                frames.append(CGRect(
+                    x: currentX,
+                    y: (rowHeight - tagSize.height) / 2,
+                    width: tagSize.width,
+                    height: tagSize.height
+                ))
+                currentX += tagSize.width + itemSpacing
+            }
+
+            return CacheData(frames: frames, size: CGSize(width: maxWidth, height: rowHeight))
+        }
+
+        return displayWrappedTrailingLayout(maxWidth: maxWidth, tagSizes: tagSizes)
+    }
+
+    private func displayWrappedLeadingLayout(maxWidth: CGFloat, tagSizes: [CGSize]) -> CacheData {
+        var frames = [CGRect(x: 0, y: 0, width: maxWidth, height: textRowHeight)]
         var currentX: CGFloat = 0
-        var currentY = textSize.height + lineSpacing
+        var currentY = textRowHeight + rowLineSpacing
         var currentLineHeight: CGFloat = 0
 
         for tagSize in tagSizes {
@@ -339,121 +497,70 @@ private struct PatientInlineTagLayout: Layout {
             size: CGSize(width: maxWidth, height: currentY + currentLineHeight)
         )
     }
-}
 
-private struct PatientTrailingTagLayout: Layout {
-    private let itemSpacing: CGFloat = 6
-    private let lineSpacing: CGFloat = 6
-    private let truncationThreshold: CGFloat = 0.7
-
-    struct CacheData {
-        var frames: [CGRect] = []
-        var size: CGSize = .zero
-    }
-
-    func makeCache(subviews: Subviews) -> CacheData {
-        CacheData()
-    }
-
-    func updateCache(_ cache: inout CacheData, subviews: Subviews) {
-        cache = CacheData()
-    }
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout CacheData) -> CGSize {
-        let layout = computeLayout(proposal: proposal, subviews: subviews)
-        cache = layout
-        return layout.size
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout CacheData) {
-        let layout = cache.frames.isEmpty ? computeLayout(proposal: proposal, subviews: subviews) : cache
-        for (index, subview) in subviews.enumerated() where index < layout.frames.count {
-            let frame = layout.frames[index]
-            subview.place(
-                at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
-                proposal: ProposedViewSize(width: frame.width, height: frame.height)
-            )
-        }
-    }
-
-    private func computeLayout(proposal: ProposedViewSize, subviews: Subviews) -> CacheData {
-        guard let textSubview = subviews.first else {
-            return CacheData()
-        }
-
-        let maxWidth = proposal.width ?? textSubview.sizeThatFits(.unspecified).width
-        let textNaturalSize = textSubview.sizeThatFits(.unspecified)
-        let tagSizes = Array(subviews.dropFirst()).map { $0.sizeThatFits(.unspecified) }
-        let tagRowWidth = tagSizes.reduce(0) { $0 + $1.width } + CGFloat(max(tagSizes.count - 1, 0)) * itemSpacing
-        let availableTextWidth = max(maxWidth - tagRowWidth - (tagSizes.isEmpty ? 0 : itemSpacing), 0)
-        let shouldKeepSingleLine = tagSizes.isEmpty
-            || availableTextWidth / max(textNaturalSize.width, 1) >= truncationThreshold
-
-        if shouldKeepSingleLine {
-            return inlineLayout(
-                maxWidth: maxWidth,
-                textSubview: textSubview,
-                tagSizes: tagSizes
-            )
-        } else {
-            return wrappedLayout(
-                maxWidth: maxWidth,
-                textSubview: textSubview,
-                tagSizes: tagSizes
-            )
-        }
-    }
-
-    private func inlineLayout(
-        maxWidth: CGFloat,
-        textSubview: LayoutSubview,
-        tagSizes: [CGSize]
-    ) -> CacheData {
-        let tagRowWidth = tagSizes.reduce(0) { $0 + $1.width } + CGFloat(max(tagSizes.count - 1, 0)) * itemSpacing
-        let textWidth = max(maxWidth - tagRowWidth - (tagSizes.isEmpty ? 0 : itemSpacing), 0)
-        let measuredTextSize = textSubview.sizeThatFits(ProposedViewSize(width: textWidth, height: nil))
-        let rowHeight = max(measuredTextSize.height, tagSizes.map(\.height).max() ?? 0)
-
-        var frames: [CGRect] = [
-            CGRect(x: 0, y: 0, width: textWidth, height: rowHeight)
-        ]
-
-        var currentX = maxWidth - tagRowWidth
-        for tagSize in tagSizes {
-            frames.append(CGRect(
-                x: currentX,
-                y: (rowHeight - tagSize.height) / 2,
-                width: tagSize.width,
-                height: tagSize.height
-            ))
-            currentX += tagSize.width + itemSpacing
-        }
-
-        return CacheData(frames: frames, size: CGSize(width: maxWidth, height: rowHeight))
-    }
-
-    private func wrappedLayout(
-        maxWidth: CGFloat,
-        textSubview: LayoutSubview,
-        tagSizes: [CGSize]
-    ) -> CacheData {
-        let textSize = textSubview.sizeThatFits(ProposedViewSize(width: maxWidth, height: nil))
+    private func displayWrappedTrailingLayout(maxWidth: CGFloat, tagSizes: [CGSize]) -> CacheData {
         let rowWidth = tagSizes.reduce(0) { $0 + $1.width } + CGFloat(max(tagSizes.count - 1, 0)) * itemSpacing
-        var frames: [CGRect] = [
-            CGRect(x: 0, y: 0, width: maxWidth, height: textSize.height)
-        ]
-
+        var frames = [CGRect(x: 0, y: 0, width: maxWidth, height: textRowHeight)]
         var currentX = max(maxWidth - rowWidth, 0)
-        let currentY = textSize.height + lineSpacing
+        let currentY = textRowHeight + rowLineSpacing
+
         for tagSize in tagSizes {
             frames.append(CGRect(x: currentX, y: currentY, width: tagSize.width, height: tagSize.height))
             currentX += tagSize.width + itemSpacing
         }
 
-        let totalHeight = tagSizes.isEmpty ? textSize.height : currentY + (tagSizes.map(\.height).max() ?? 0)
+        let totalHeight = tagSizes.isEmpty ? textRowHeight : currentY + (tagSizes.map(\.height).max() ?? 0)
         return CacheData(frames: frames, size: CGSize(width: maxWidth, height: totalHeight))
     }
+
+    private func editLayout(maxWidth: CGFloat, tagSizes: [CGSize]) -> CacheData {
+        var frames = [CGRect(x: 0, y: 0, width: maxWidth, height: textRowHeight)]
+        guard !tagSizes.isEmpty else {
+            return CacheData(frames: frames, size: CGSize(width: maxWidth, height: textRowHeight))
+        }
+
+        var currentX: CGFloat = 0
+        var currentY = textRowHeight + rowLineSpacing
+        var currentLineHeight: CGFloat = 0
+
+        for tagSize in tagSizes {
+            if currentX > 0, currentX + tagSize.width > maxWidth {
+                currentX = 0
+                currentY += currentLineHeight + itemSpacing
+                currentLineHeight = 0
+            }
+
+            frames.append(CGRect(x: currentX, y: currentY, width: tagSize.width, height: tagSize.height))
+            currentX += tagSize.width + itemSpacing
+            currentLineHeight = max(currentLineHeight, tagSize.height)
+        }
+
+        return CacheData(
+            frames: frames,
+            size: CGSize(width: maxWidth, height: currentY + currentLineHeight)
+        )
+    }
+
+    private func interpolate(_ start: CGFloat, _ end: CGFloat, progress: CGFloat) -> CGFloat {
+        start + (end - start) * progress
+    }
+
+    private func interpolatedFrame(from start: CGRect, to end: CGRect, progress: CGFloat) -> CGRect {
+        CGRect(
+            x: interpolate(start.minX, end.minX, progress: progress),
+            y: interpolate(start.minY, end.minY, progress: progress),
+            width: interpolate(start.width, end.width, progress: progress),
+            height: interpolate(start.height, end.height, progress: progress)
+        )
+    }
 }
+
+private func naturalTextWidth(for text: String) -> CGFloat {
+    let font = UIFont.preferredFont(forTextStyle: .body)
+    return ceil((text as NSString).size(withAttributes: [.font: font]).width)
+}
+
+private let patientRowTextHeight: CGFloat = max(26, ceil(UIFont.preferredFont(forTextStyle: .body).lineHeight) + 4)
 
 struct GhostPatientRow: View {
     @ObservedObject private var colorStore = TagColorStore.shared
@@ -762,10 +869,14 @@ struct TagTokenField: View {
     var autoFocus: Bool = false
     var focusTrigger: Int = 0
     var keepFocusOnSubmit: Bool = false
+    var tagTransitionNamespace: Namespace.ID? = nil
+    var tagTransitionIDPrefix: String? = nil
     var onSubmit: (() -> Void)? = nil
     var onEditingChanged: ((Bool) -> Void)? = nil
 
     @State private var isFocused: Bool = false
+    private let tagMutationAnimation = Animation.easeInOut(duration: 0.2)
+    private let tagRemovalAnimation = Animation.easeOut(duration: 0.16)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -781,7 +892,9 @@ struct TagTokenField: View {
                 onBackspaceWhenEmpty: {
                     if !tags.isEmpty {
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                        tags.removeLast()
+                        withAnimation(tagRemovalAnimation) {
+                            tags.removeLast()
+                        }
                     }
                 },
                 onTagExtracted: { tag in
@@ -789,7 +902,9 @@ struct TagTokenField: View {
                     // become "system tags" visible in the tag manager.
                     registerTagsIfNeeded([tag])
                     if !tags.contains(tag) {
-                        tags.append(tag)
+                        withAnimation(tagMutationAnimation) {
+                            tags.append(tag)
+                        }
                         markTagsUsed([tag])
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     }
@@ -806,28 +921,19 @@ struct TagTokenField: View {
             if !tags.isEmpty {
                 FlowLayout(spacing: 6) {
                     ForEach(tags, id: \.self) { tag in
-                        HStack(spacing: isFocused ? 3 : 0) {
-                            Text(tag)
-                                .font(.caption)
-                            // Only show ✕ in editing mode
-                            if isFocused {
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 8, weight: .bold))
-                            }
-                        }
-                        .foregroundColor(Color.tagTextColor(for: tag))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .background(Color.tagColor(for: tag))
-                        .cornerRadius(12)
+                        editableTagChip(tag)
+                        .transition(.opacity)
                         .onTapGesture {
                             // Only allow deletion when in editing mode
                             guard isFocused else { return }
-                            tags.removeAll { $0 == tag }
+                            withAnimation(tagRemovalAnimation) {
+                                tags.removeAll { $0 == tag }
+                            }
                             UIImpactFeedbackGenerator(style: .light).impactOccurred()
                         }
                     }
                 }
+                .animation(tagMutationAnimation, value: tags)
             }
 
             // Autocomplete suggestion bar — appears when #typing
@@ -845,7 +951,9 @@ struct TagTokenField: View {
                                         text.replaceSubrange(fullRange, with: "")
                                     }
                                     if !tags.contains(sug) {
-                                        tags.append(sug)
+                                        withAnimation(tagMutationAnimation) {
+                                            tags.append(sug)
+                                        }
                                         markTagsUsed([sug])
                                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                                     }
@@ -871,6 +979,28 @@ struct TagTokenField: View {
         }
         .onChange(of: isFocused) { _, newValue in
             onEditingChanged?(newValue)
+        }
+    }
+
+    @ViewBuilder
+    private func editableTagChip(_ tag: String) -> some View {
+        let chip = PatientTagChip(
+            tag: tag,
+            horizontalPadding: 8,
+            verticalPadding: 5,
+            deleteRevealProgress: isFocused ? 1 : 0,
+            animateOnAppear: true
+        )
+
+        if let tagTransitionNamespace, let tagTransitionIDPrefix {
+            chip.matchedGeometryEffect(
+                id: "\(tagTransitionIDPrefix)-\(tag)",
+                in: tagTransitionNamespace,
+                properties: .frame,
+                anchor: .topLeading
+            )
+        } else {
+            chip
         }
     }
 }

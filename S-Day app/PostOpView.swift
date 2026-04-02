@@ -230,6 +230,7 @@ struct PostOpView: View {
                                                        onShowTagSheet: {
                                                            selectedPatientForTag = patient
                                                        })
+                                                .animation(.easeInOut(duration: 0.2), value: patient.tags)
                                                 .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                                         }
                                         .onMove { source, destination in
