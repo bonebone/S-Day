@@ -143,16 +143,11 @@ struct OverviewView: View {
                             proxy.scrollTo("topPosition", anchor: .top)
                         }
                     }) {
-                        HStack(alignment: .center) {
-                            Text("概览")
-                                .font(.largeTitle)
-                                .bold()
-                                .layoutPriority(1)
-
-                            Spacer(minLength: 16)
-
-                            NativeSearchBar(text: $searchText, placeholder: "全局快速定位...")
-                        }
+                        AdaptiveTitleSearchHeader(
+                            title: "概览",
+                            searchText: $searchText,
+                            placeholder: "全局快速定位..."
+                        )
                     }
 
                     if !searchText.isEmpty {
@@ -407,21 +402,22 @@ private struct OverviewTextLine: View {
     let subtitle: String
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
+        VStack(alignment: .leading, spacing: subtitle.isEmpty ? 0 : 3) {
             Text(title)
                 .font(.body)
                 .foregroundColor(.primary)
-                .lineLimit(1)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
             if !subtitle.isEmpty {
                 Text(subtitle)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(2)
             }
-            Spacer(minLength: 0)
         }
         .padding(.horizontal, 8)
-        .padding(.vertical, 1)
+        .padding(.vertical, 3)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
     }
 }
@@ -434,11 +430,13 @@ private struct OverviewSearchRow: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(patient.parsedName?.isEmpty == false ? patient.parsedName! : patient.rawInput)
                 .foregroundColor(.primary)
-                .lineLimit(1)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
             if !subtitle.isEmpty {
                 Text(subtitle)
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .lineLimit(2)
             }
         }
         .padding(.vertical, 4)

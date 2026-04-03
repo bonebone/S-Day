@@ -222,7 +222,7 @@ struct TagManagerRow: View {
                 .foregroundColor(.primary)
                 .onAppear { editText = tag }
                 .onSubmit { save() }
-                .onChange(of: isEditing) { editing in
+                .onChange(of: isEditing) { _, editing in
                     if !editing { save() }
                 }
                 .submitLabel(.done)

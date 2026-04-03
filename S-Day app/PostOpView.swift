@@ -89,31 +89,23 @@ struct PostOpView: View {
                     }) {
                         VStack(spacing: 10) {
                             ZStack {
-                                HStack(alignment: .center) {
-                                    Text("术后")
-                                        .font(.largeTitle)
-                                        .bold()
-                                        .layoutPriority(1)
-                                    
-                                    Spacer(minLength: 16)
-                                    
-                                    NativeSearchBar(text: $searchText, placeholder: "搜索术后...")
-                                }
+                                AdaptiveTitleSearchHeader(
+                                    title: "术后",
+                                    searchText: $searchText,
+                                    placeholder: "搜索术后..."
+                                )
                                 .opacity(isSelectionMode ? 0 : 1)
                                 .allowsHitTesting(!isSelectionMode)
                                 
-                                HStack(alignment: .center) {
-                                    Button("取消") {
+                                AdaptiveSelectionHeader(
+                                    selectedCount: selectedPatients.count,
+                                    onCancel: {
                                         withAnimation {
                                             isSelectionMode = false
                                             selectedPatients.removeAll()
                                         }
-                                    }
-                                    Spacer()
-                                    Text("已选择 \(selectedPatients.count) 人")
-                                        .font(.headline)
-                                    Spacer()
-                                    Button("全选") {
+                                    },
+                                    onToggleSelectAll: {
                                         withAnimation {
                                             let allIds = groupedPostOpPatients.flatMap { $0.value }.map { $0.id }
                                             if selectedPatients.count == allIds.count {
@@ -123,7 +115,7 @@ struct PostOpView: View {
                                             }
                                         }
                                     }
-                                }
+                                )
                                 .opacity(isSelectionMode ? 1 : 0)
                                 .allowsHitTesting(isSelectionMode)
                             }
@@ -333,7 +325,7 @@ struct PostOpView: View {
             .safeAreaInset(edge: .bottom) {
                 VStack(spacing: 0) {
                     Divider()
-                    HStack(spacing: 0) {
+                    AdaptiveActionBar {
                         Button(role: .destructive) {
                             guard !selectedPatients.isEmpty else { return }
                             let toDelete = patients.filter { selectedPatients.contains($0.id) }
@@ -345,7 +337,7 @@ struct PostOpView: View {
                             }
                         } label: {
                             Image(systemName: "trash").font(.title2)
-                                .frame(maxWidth: .infinity)
+                                .frame(maxWidth: .infinity, minHeight: 44)
                         }
                         .disabled(selectedPatients.isEmpty || !isSelectionMode)
                         
@@ -355,7 +347,7 @@ struct PostOpView: View {
                             showBatchDatePicker = true
                         } label: {
                             Image(systemName: "calendar").font(.title2)
-                                .frame(maxWidth: .infinity)
+                                .frame(maxWidth: .infinity, minHeight: 44)
                         }
                         .disabled(selectedPatients.isEmpty || !isSelectionMode)
                         
@@ -364,7 +356,7 @@ struct PostOpView: View {
                             showBatchTagSheet = true
                         } label: {
                             Image(systemName: "tag").font(.title2)
-                                .frame(maxWidth: .infinity)
+                                .frame(maxWidth: .infinity, minHeight: 44)
                         }
                         .disabled(selectedPatients.isEmpty || !isSelectionMode)
                         
@@ -382,7 +374,7 @@ struct PostOpView: View {
                             }
                         } label: {
                             Image(systemName: "square.and.arrow.up").font(.title2)
-                                .frame(maxWidth: .infinity)
+                                .frame(maxWidth: .infinity, minHeight: 44)
                         }
                         .disabled(selectedPatients.isEmpty || !isSelectionMode)
                     }

@@ -35,6 +35,87 @@ struct TabHeaderContainer<Content: View>: View {
     }
 }
 
+struct AdaptiveTitleSearchHeader: View {
+    let title: String
+    @Binding var searchText: String
+    var placeholder: String
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            titleView
+
+            NativeSearchBar(text: $searchText, placeholder: placeholder)
+                .frame(minWidth: 120, maxWidth: .infinity)
+                .layoutPriority(0)
+        }
+    }
+
+    private var titleView: some View {
+        Text(title)
+            .font(.largeTitle)
+            .bold()
+            .lineLimit(1)
+            .minimumScaleFactor(0.72)
+            .layoutPriority(1)
+    }
+}
+
+struct AdaptiveSelectionHeader: View {
+    let selectedCount: Int
+    let onCancel: () -> Void
+    let onToggleSelectAll: () -> Void
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center) {
+                Button("取消", action: onCancel)
+
+                Spacer()
+
+                Text("已选择 \(selectedCount) 人")
+                    .font(.headline)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+
+                Spacer()
+
+                Button("全选", action: onToggleSelectAll)
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("已选择 \(selectedCount) 人")
+                    .font(.headline)
+
+                HStack {
+                    Button("取消", action: onCancel)
+                    Spacer()
+                    Button("全选", action: onToggleSelectAll)
+                }
+            }
+        }
+    }
+}
+
+struct AdaptiveActionBar<ActionContent: View>: View {
+    @ViewBuilder let content: () -> ActionContent
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 0) {
+                content()
+            }
+
+            LazyVGrid(columns: gridColumns, spacing: 0) {
+                content()
+            }
+        }
+    }
+
+    private var gridColumns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: 0), count: 2)
+    }
+}
+
 struct PatientRow: View {
     @Environment(\.modelContext) private var modelContext
     @ObservedObject private var colorStore = TagColorStore.shared
@@ -1204,6 +1285,7 @@ struct NativeSearchBar: View {
         .padding(.vertical, 8)
         .background(Color(UIColor.systemGray6))
         .clipShape(Capsule())
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

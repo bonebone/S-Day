@@ -81,7 +81,7 @@ struct ContentView: View {
                 authenticate()
             }
         }
-        .onChange(of: scenePhase) { phase in
+        .onChange(of: scenePhase) { _, phase in
             if phase == .background {
                 // Lock when app goes to background
                 if requireBiometrics {

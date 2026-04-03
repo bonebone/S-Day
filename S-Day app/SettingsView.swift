@@ -53,37 +53,71 @@ struct SettingsView: View {
                     }
                     
                     Section(header: Text("外观")) {
-                        HStack {
-                            settingsRowLabel("界面颜色", systemImage: "paintpalette")
-                                .frame(width: 110, alignment: .leading)
-                            Picker("界面颜色", selection: $appearance) {
-                                ForEach(AppAppearance.allCases) { style in
-                                    Text(style.rawValue).tag(style)
+                        ViewThatFits(in: .horizontal) {
+                            HStack(alignment: .center, spacing: 12) {
+                                settingsRowLabel("界面颜色", systemImage: "paintpalette")
+                                    .fixedSize(horizontal: true, vertical: false)
+
+                                Spacer(minLength: 12)
+
+                                Picker("界面颜色", selection: $appearance) {
+                                    ForEach(AppAppearance.allCases) { style in
+                                        Text(style.rawValue).tag(style)
+                                    }
                                 }
+                                .pickerStyle(.segmented)
+                                .controlSize(.mini)
+                                .labelsHidden()
+                                .frame(width: 220)
+                                .frame(maxWidth: .infinity, alignment: .trailing)
                             }
-                            .pickerStyle(.segmented)
-                            .controlSize(.mini)
-                            .labelsHidden()
-                            .frame(height: 28)
+
+                            VStack(alignment: .leading, spacing: 10) {
+                                settingsRowLabel("界面颜色", systemImage: "paintpalette")
+                                Picker("界面颜色", selection: $appearance) {
+                                    ForEach(AppAppearance.allCases) { style in
+                                        Text(style.rawValue).tag(style)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .labelsHidden()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
                         }
-                        .frame(minHeight: 32)
                         .listRowInsets(EdgeInsets(top: 2, leading: 16, bottom: 2, trailing: 16))
                         .environment(\.defaultMinListRowHeight, 0)
 
-                        HStack {
-                            settingsRowLabel("标签布局", systemImage: "text.alignleft")
-                                .frame(width: 110, alignment: .leading)
-                            Picker("标签布局", selection: $patientTagDisplayMode) {
-                                ForEach(PatientTagDisplayMode.allCases) { mode in
-                                    Text(mode.rawValue).tag(mode)
+                        ViewThatFits(in: .horizontal) {
+                            HStack(alignment: .center, spacing: 12) {
+                                settingsRowLabel("标签布局", systemImage: "text.alignleft")
+                                    .fixedSize(horizontal: true, vertical: false)
+
+                                Spacer(minLength: 12)
+
+                                Picker("标签布局", selection: $patientTagDisplayMode) {
+                                    ForEach(PatientTagDisplayMode.allCases) { mode in
+                                        Text(mode.rawValue).tag(mode)
+                                    }
                                 }
+                                .pickerStyle(.segmented)
+                                .controlSize(.mini)
+                                .labelsHidden()
+                                .frame(width: 220)
+                                .frame(maxWidth: .infinity, alignment: .trailing)
                             }
-                            .pickerStyle(.segmented)
-                            .controlSize(.mini)
-                            .labelsHidden()
-                            .frame(height: 28)
+
+                            VStack(alignment: .leading, spacing: 10) {
+                                settingsRowLabel("标签布局", systemImage: "text.alignleft")
+                                Picker("标签布局", selection: $patientTagDisplayMode) {
+                                    ForEach(PatientTagDisplayMode.allCases) { mode in
+                                        Text(mode.rawValue).tag(mode)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .labelsHidden()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
                         }
-                        .frame(minHeight: 32)
                         .listRowInsets(EdgeInsets(top: 2, leading: 16, bottom: 2, trailing: 16))
                         .environment(\.defaultMinListRowHeight, 0)
                     }
@@ -263,6 +297,7 @@ struct SettingsView: View {
                 .foregroundColor(.blue)
             Text(title)
                 .foregroundColor(.primary)
+                .lineLimit(1)
         }
         .font(.body)
     }
