@@ -14,14 +14,19 @@ enum PreOpJumpTarget: Equatable {
     case surgeryDate(Date)
 }
 
+@MainActor
 final class AppNavigationState: ObservableObject {
+    static let shared = AppNavigationState()
+
     @Published var selectedTab: AppTab = .overview
     @Published var preOpSearchText: String = ""
     @Published var postOpSearchText: String = ""
     @Published var preOpJumpTarget: PreOpJumpTarget?
+    @Published private(set) var preOpComposerFocusToken: Int = 0
 
     func showPreOp(date: Date?) {
         preOpSearchText = ""
+        preOpComposerFocusToken = 0
         if let date {
             preOpJumpTarget = .surgeryDate(Calendar.current.startOfDay(for: date))
         } else {
@@ -31,9 +36,17 @@ final class AppNavigationState: ObservableObject {
     }
 
     func showPreOp(searchText: String) {
+        preOpComposerFocusToken = 0
         preOpJumpTarget = nil
         preOpSearchText = searchText
         selectedTab = .preOp
+    }
+
+    func showPreOpComposer() {
+        preOpJumpTarget = nil
+        preOpSearchText = ""
+        selectedTab = .preOp
+        preOpComposerFocusToken &+= 1
     }
 
     func showPostOp(searchText: String = "") {

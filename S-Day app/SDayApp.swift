@@ -3,7 +3,8 @@ import SwiftData
 
 @main
 struct SDayApp: App {
-    @StateObject private var navigationState = AppNavigationState()
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @StateObject private var navigationState = AppNavigationState.shared
 
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([

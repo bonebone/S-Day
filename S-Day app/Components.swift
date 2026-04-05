@@ -646,6 +646,7 @@ private let patientRowTextHeight: CGFloat = max(26, ceil(UIFont.preferredFont(fo
 struct GhostPatientRow: View {
     @ObservedObject private var colorStore = TagColorStore.shared
     var onCommit: (String, [String]) -> Void
+    var focusTrigger: Int = 0
     @State private var input: String = ""
     @State private var tags: [String] = []
     private let rowVerticalPadding: CGFloat = 8
@@ -661,6 +662,8 @@ struct GhostPatientRow: View {
                 allTags: existingTags(),
                 placeholder: "新病人...",
                 autoFocusIfEmpty: false,
+                autoFocus: focusTrigger > 0,
+                focusTrigger: focusTrigger,
                 keepFocusOnSubmit: true,
                 onSubmit: {
                     submit()

@@ -29,6 +29,7 @@ struct PreOpView: View {
     @State private var singlePatientSurgeryDate: Date = Date()
     @State private var showingToast = false
     @State private var toastMessage = ""
+    @State private var handledComposerFocusToken = 0
     
     private var preOpPatients: [Patient] {
         patients.filter { !$0.isPostOp }
@@ -152,9 +153,13 @@ struct PreOpView: View {
                         Color.clear.frame(height: 0).listRowInsets(EdgeInsets()).listRowSeparator(.hidden).id("topPosition")
 
                         // Keep the row height in selection mode so the first patient does not shift upward.
-                        GhostPatientRow { newName, newTags in
+                        GhostPatientRow(
+                            onCommit: { newName, newTags in
                             addPatient(name: newName, tags: newTags)
-                        }
+                            },
+                            focusTrigger: navigationState.preOpComposerFocusToken
+                        )
+                        .id("preOpGhostPatientRow")
                         .opacity(isSelectionMode ? 0 : 1)
                         .allowsHitTesting(!isSelectionMode)
                         .accessibilityHidden(isSelectionMode)
@@ -277,6 +282,7 @@ struct PreOpView: View {
                     )
                     .onAppear {
                         syncFromNavigationState(proxy: proxy)
+                        syncComposerFocusRequest(proxy: proxy)
                         syncSelectedTag()
                     }
                     .onChange(of: searchText) { _, newValue in
@@ -292,6 +298,9 @@ struct PreOpView: View {
                     }
                     .onChange(of: navigationState.preOpJumpTarget) { _, _ in
                         syncFromNavigationState(proxy: proxy)
+                    }
+                    .onChange(of: navigationState.preOpComposerFocusToken) { _, _ in
+                        syncComposerFocusRequest(proxy: proxy)
                     }
                     .onChange(of: tagFilterSnapshot.availableTags) { _, _ in
                         syncSelectedTag()
@@ -526,6 +535,21 @@ struct PreOpView: View {
         self.selectedTag = nil
     }
 
+    private func syncComposerFocusRequest(proxy: ScrollViewProxy) {
+        let focusToken = navigationState.preOpComposerFocusToken
+        guard focusToken > handledComposerFocusToken else { return }
+
+        handledComposerFocusToken = focusToken
+        searchText = ""
+        selectedTag = nil
+
+        DispatchQueue.main.async {
+            withAnimation {
+                proxy.scrollTo("preOpGhostPatientRow", anchor: .top)
+            }
+        }
+    }
+
     private func sectionScrollID(for date: Date?) -> String {
         if let date {
             return "preop-section-\(date.timeIntervalSinceReferenceDate)"
@@ -583,4 +607,4 @@ struct PreOpView: View {
             }
         }
     }
-    }
+}
