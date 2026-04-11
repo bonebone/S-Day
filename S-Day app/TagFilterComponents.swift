@@ -82,7 +82,7 @@ struct TagFilterChip: View {
                 .clipShape(Capsule())
                 .overlay(
                     Capsule()
-                        .stroke(borderColor, lineWidth: isSelected ? 0 : 0.8)
+                        .stroke(borderColor, lineWidth: isSelected ? 0 : 1.4)
                 )
         }
         .buttonStyle(.plain)
@@ -107,7 +107,7 @@ struct TagFilterChip: View {
 
     private var borderColor: Color {
         if let tag, !isSelected {
-            return Color.tagColor(for: tag).opacity(0.24)
+            return Color.tagColor(for: tag).opacity(0.42)
         }
         return Color(.separator).opacity(0.6)
     }

@@ -10,6 +10,7 @@ struct PostOpView: View {
     @ObservedObject private var tagFilterStore = TagFilterStore.shared
     private let sectionSelectionIndicatorSize: CGFloat = 20
     private let sectionSelectionIndicatorSpacing: CGFloat = 4
+    private let listInsertionAnimation = Animation.snappy(duration: 0.32, extraBounce: 0.02)
     
     @State private var collapsedDates: Set<Date> = []
     @State private var searchText = ""
@@ -69,6 +70,13 @@ struct PostOpView: View {
             .map { (key, value) in
                 (key: key, value: value.sorted { $0.order < $1.order })
             }
+    }
+
+    private var postOpListAnimationKey: [String] {
+        groupedPostOpPatients.flatMap { group in
+            let groupKey = group.key.formatted(date: .abbreviated, time: .omitted)
+            return ["section:\(groupKey)"] + group.value.map { "patient:\($0.id.uuidString)" }
+        }
     }
 
     private var emptyStateText: String {
@@ -238,6 +246,7 @@ struct PostOpView: View {
                     .contentMargins(.top, 0, for: .scrollContent)
                     .environment(\.defaultMinListRowHeight, 0)
                     .padding(.top, 4)
+                    .animation(listInsertionAnimation, value: postOpListAnimationKey)
                     // Left swipe in selection mode exits it
                     .simultaneousGesture(
                         DragGesture(minimumDistance: 30, coordinateSpace: .local)
