@@ -8,6 +8,7 @@
 
 /* Begin PBXFileReference section */
 		F61DAD4C2F5D3BB6002BF60F /* S-Day app.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "S-Day app.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		F6D000012F5D3BB6002BF60F /* S-Day Tab Demo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "S-Day Tab Demo.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -16,10 +17,22 @@
 			path = "S-Day app";
 			sourceTree = "<group>";
 		};
+		F6D000022F5D3BB6002BF60F /* S-Day Tab Demo */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "S-Day Tab Demo";
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		F61DAD492F5D3BB6002BF60F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F6D000032F5D3BB6002BF60F /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -33,6 +46,7 @@
 			isa = PBXGroup;
 			children = (
 				F61DAD4E2F5D3BB6002BF60F /* S-Day app */,
+				F6D000022F5D3BB6002BF60F /* S-Day Tab Demo */,
 				F61DAD4D2F5D3BB6002BF60F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,6 +55,7 @@
 			isa = PBXGroup;
 			children = (
 				F61DAD4C2F5D3BB6002BF60F /* S-Day app.app */,
+				F6D000012F5D3BB6002BF60F /* S-Day Tab Demo.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -70,6 +85,28 @@
 			productReference = F61DAD4C2F5D3BB6002BF60F /* S-Day app.app */;
 			productType = "com.apple.product-type.application";
 		};
+		F6D000042F5D3BB6002BF60F /* S-Day Tab Demo */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F6D0000A2F5D3BB7002BF60F /* Build configuration list for PBXNativeTarget "S-Day Tab Demo" */;
+			buildPhases = (
+				F6D000052F5D3BB6002BF60F /* Sources */,
+				F6D000032F5D3BB6002BF60F /* Frameworks */,
+				F6D000062F5D3BB6002BF60F /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				F6D000022F5D3BB6002BF60F /* S-Day Tab Demo */,
+			);
+			name = "S-Day Tab Demo";
+			packageProductDependencies = (
+			);
+			productName = "S-Day Tab Demo";
+			productReference = F6D000012F5D3BB6002BF60F /* S-Day Tab Demo.app */;
+			productType = "com.apple.product-type.application";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -81,6 +118,10 @@
 				LastUpgradeCheck = 2630;
 				TargetAttributes = {
 					F61DAD4B2F5D3BB6002BF60F = {
+						CreatedOnToolsVersion = 26.3;
+						LastSwiftMigration = 2630;
+					};
+					F6D000042F5D3BB6002BF60F = {
 						CreatedOnToolsVersion = 26.3;
 						LastSwiftMigration = 2630;
 					};
@@ -102,6 +143,7 @@
 			projectRoot = "";
 			targets = (
 				F61DAD4B2F5D3BB6002BF60F /* S-Day app */,
+				F6D000042F5D3BB6002BF60F /* S-Day Tab Demo */,
 			);
 		};
 /* End PBXProject section */
@@ -114,10 +156,24 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F6D000062F5D3BB6002BF60F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		F61DAD482F5D3BB6002BF60F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F6D000052F5D3BB6002BF60F /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -325,6 +381,73 @@
 			};
 			name = Release;
 		};
+		F6D000082F5D3BB7002BF60F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = AC2SYY93D7;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDevelopmentRegion = zh-Hans;
+				INFOPLIST_KEY_CFBundleDisplayName = "S-Day Demo";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "ZYYY.S-Day-tab-demo";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		F6D000092F5D3BB7002BF60F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = AC2SYY93D7;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDevelopmentRegion = zh-Hans;
+				INFOPLIST_KEY_CFBundleDisplayName = "S-Day Demo";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "ZYYY.S-Day-tab-demo";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -342,6 +465,15 @@
 			buildConfigurations = (
 				F61DAD5A2F5D3BB7002BF60F /* Debug */,
 				F61DAD5B2F5D3BB7002BF60F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F6D0000A2F5D3BB7002BF60F /* Build configuration list for PBXNativeTarget "S-Day Tab Demo" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F6D000082F5D3BB7002BF60F /* Debug */,
+				F6D000092F5D3BB7002BF60F /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
