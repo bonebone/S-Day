@@ -30,6 +30,7 @@ struct PreOpView: View {
     @State private var showingToast = false
     @State private var toastMessage = ""
     @State private var handledComposerFocusToken = 0
+    @State private var isAwaitingBatchDeleteConfirmation = false
     
     private var preOpPatients: [Patient] {
         patients.filter { !$0.isPostOp }
@@ -246,6 +247,9 @@ struct PreOpView: View {
                                                    },
                                                    onShowTagSheet: {
                                                        selectedPatientForTag = patient
+                                                   },
+                                                   onCopyExport: {
+                                                       copySinglePatient(patient)
                                                    })
                                             .animation(.easeInOut(duration: 0.2), value: patient.tags)
                                             .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
@@ -329,6 +333,15 @@ struct PreOpView: View {
                             selection: $tagFilterSheetDetent
                         )
                     }
+                    .overlay {
+                        if isSelectionMode && isAwaitingBatchDeleteConfirmation {
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    cancelBatchDeleteConfirmation()
+                                }
+                        }
+                    }
             }
             } // ScrollViewReader
             .toolbar(.hidden, for: .navigationBar)
@@ -362,55 +375,79 @@ struct PreOpView: View {
                 VStack(spacing: 0) {
                     Divider()
                     AdaptiveActionBar {
-                        Button(role: .destructive) {
-                            guard !selectedPatients.isEmpty else { return }
-                            let toDelete = patients.filter { selectedPatients.contains($0.id) }
-                            for p in toDelete { modelContext.delete(p) }
-                            selectedPatients.removeAll()
-                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                            withAnimation {
-                                isSelectionMode = false
-                            }
-                        } label: {
-                            Image(systemName: "trash").font(.title2)
-                                .frame(maxWidth: .infinity, minHeight: 44)
-                        }
-                        .disabled(selectedPatients.isEmpty || !isSelectionMode)
-                        
                         Button {
-                            guard !selectedPatients.isEmpty else { return }
-                            batchSurgeryDate = Date()
-                            showBatchDatePicker = true
+                            handleBatchDateTap()
                         } label: {
                             Image(systemName: "calendar").font(.title2)
                                 .frame(maxWidth: .infinity, minHeight: 44)
                         }
-                        .disabled(selectedPatients.isEmpty || !isSelectionMode)
+                        .disabled(selectedPatients.isEmpty || !isSelectionMode || isAwaitingBatchDeleteConfirmation)
+                        .overlay {
+                            if isSelectionMode && isAwaitingBatchDeleteConfirmation && !selectedPatients.isEmpty {
+                                Color.clear
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        cancelBatchDeleteConfirmation()
+                                    }
+                            }
+                        }
                         
                         Button {
-                            guard !selectedPatients.isEmpty else { return }
-                            showBatchTagSheet = true
+                            handleBatchTagTap()
                         } label: {
                             Image(systemName: "tag").font(.title2)
                                 .frame(maxWidth: .infinity, minHeight: 44)
                         }
-                        .disabled(selectedPatients.isEmpty || !isSelectionMode)
+                        .disabled(selectedPatients.isEmpty || !isSelectionMode || isAwaitingBatchDeleteConfirmation)
+                        .overlay {
+                            if isSelectionMode && isAwaitingBatchDeleteConfirmation && !selectedPatients.isEmpty {
+                                Color.clear
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        cancelBatchDeleteConfirmation()
+                                    }
+                            }
+                        }
                         
                         Button {
+                            handleBatchCopyTap()
+                        } label: {
+                            Image(systemName: "doc.on.doc").font(.title2)
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                        }
+                        .disabled(selectedPatients.isEmpty || !isSelectionMode || isAwaitingBatchDeleteConfirmation)
+                        .overlay {
+                            if isSelectionMode && isAwaitingBatchDeleteConfirmation && !selectedPatients.isEmpty {
+                                Color.clear
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        cancelBatchDeleteConfirmation()
+                                    }
+                            }
+                        }
+                        
+                        Button(role: .destructive) {
                             guard !selectedPatients.isEmpty else { return }
-                            let selected = patients.filter { selectedPatients.contains($0.id) }
-                            let text = exportText(for: selected, sortDatesDescending: false, titleStyle: .preOp)
-                            UIPasteboard.general.string = text
-                            let generator = UINotificationFeedbackGenerator()
-                            generator.notificationOccurred(.success)
-                            showToast("已复制到剪贴板")
-                            withAnimation {
-                                isSelectionMode = false
-                                selectedPatients.removeAll()
+                            if isAwaitingBatchDeleteConfirmation {
+                                confirmBatchDelete()
+                            } else {
+                                withAnimation(.snappy(duration: 0.22, extraBounce: 0)) {
+                                    isAwaitingBatchDeleteConfirmation = true
+                                }
                             }
                         } label: {
-                            Image(systemName: "square.and.arrow.up").font(.title2)
-                                .frame(maxWidth: .infinity, minHeight: 44)
+                            Group {
+                                if isAwaitingBatchDeleteConfirmation {
+                                    Text("确认删除")
+                                        .font(.callout.weight(.semibold))
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.8)
+                                } else {
+                                    Image(systemName: "trash").font(.title2)
+                                }
+                            }
+                            .foregroundStyle(.red)
+                            .frame(maxWidth: .infinity, minHeight: 44)
                         }
                         .disabled(selectedPatients.isEmpty || !isSelectionMode)
                     }
@@ -500,6 +537,14 @@ struct PreOpView: View {
             .sheet(item: $selectedPatientForTag) { patient in
                 TagSheetView(patient: patient, existingAllTags: existingTags())
             }
+            .onChange(of: isSelectionMode) { _, newValue in
+                if !newValue {
+                    cancelBatchDeleteConfirmation()
+                }
+            }
+            .onChange(of: selectedPatients) { _, _ in
+                cancelBatchDeleteConfirmation()
+            }
         }
     }
 
@@ -555,6 +600,60 @@ struct PreOpView: View {
             return "preop-section-\(date.timeIntervalSinceReferenceDate)"
         }
         return "preop-section-unscheduled"
+    }
+
+    private func copySinglePatient(_ patient: Patient) {
+        let tagsText = patient.tags.map { "#\($0)" }.joined(separator: " ")
+        let text = tagsText.isEmpty ? patient.rawInput : "\(patient.rawInput) \(tagsText)"
+        UIPasteboard.general.string = text
+        let generator = UINotificationFeedbackGenerator()
+        generator.notificationOccurred(.success)
+        showToast("已复制到剪贴板")
+    }
+
+    private func cancelBatchDeleteConfirmation() {
+        guard isAwaitingBatchDeleteConfirmation else { return }
+        withAnimation(.snappy(duration: 0.18, extraBounce: 0)) {
+            isAwaitingBatchDeleteConfirmation = false
+        }
+    }
+
+    private func handleBatchDateTap() {
+        guard !selectedPatients.isEmpty, isSelectionMode else { return }
+        batchSurgeryDate = Date()
+        showBatchDatePicker = true
+    }
+
+    private func handleBatchTagTap() {
+        guard !selectedPatients.isEmpty, isSelectionMode else { return }
+        showBatchTagSheet = true
+    }
+
+    private func handleBatchCopyTap() {
+        guard !selectedPatients.isEmpty, isSelectionMode else { return }
+        let selected = patients.filter { selectedPatients.contains($0.id) }
+        let text = exportText(for: selected, sortDatesDescending: false, titleStyle: .preOp)
+        UIPasteboard.general.string = text
+        let generator = UINotificationFeedbackGenerator()
+        generator.notificationOccurred(.success)
+        showToast("已复制到剪贴板")
+        withAnimation {
+            isSelectionMode = false
+            selectedPatients.removeAll()
+        }
+    }
+
+    private func confirmBatchDelete() {
+        isAwaitingBatchDeleteConfirmation = false
+        let toDelete = patients.filter { selectedPatients.contains($0.id) }
+        for patient in toDelete {
+            modelContext.delete(patient)
+        }
+        selectedPatients.removeAll()
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        withAnimation {
+            isSelectionMode = false
+        }
     }
     
 

@@ -135,6 +135,7 @@ struct PatientRow: View {
     var onSwipeSelect: (() -> Void)? = nil
     var onShowDatePicker: (() -> Void)? = nil
     var onShowTagSheet: (() -> Void)? = nil
+    var onCopyExport: (() -> Void)? = nil
     
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
@@ -190,12 +191,12 @@ struct PatientRow: View {
                 }
 
                 Button {
-                    onShowDatePicker?()
+                    onCopyExport?()
                 } label: {
-                    Label("设日期", systemImage: "calendar")
+                    Label("复制", systemImage: "doc.on.doc")
                         .labelStyle(.iconOnly)
                 }
-                .tint(.blue)
+                .tint(.teal)
 
                 Button {
                     onShowTagSheet?()
@@ -204,6 +205,14 @@ struct PatientRow: View {
                         .labelStyle(.iconOnly)
                 }
                 .tint(.orange)
+
+                Button {
+                    onShowDatePicker?()
+                } label: {
+                    Label("设日期", systemImage: "calendar")
+                        .labelStyle(.iconOnly)
+                }
+                .tint(.blue)
             }
         }
         .onChange(of: isSelectionMode) { _, newValue in
