@@ -3,17 +3,22 @@ import SwiftData
 import LocalAuthentication
 
 struct ContentView: View {
+    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var navigationState: AppNavigationState
     @Query private var allPatients: [Patient]
 
+    private var visiblePatients: [Patient] {
+        activePatients(from: allPatients)
+    }
+
     /// Post-op patients with "需追踪" tag.
     private var postOpTrackingCount: Int {
-        allPatients.filter { $0.isPostOp && $0.tags.contains("需追踪") }.count
+        visiblePatients.filter { $0.isPostOp && $0.tags.contains("需追踪") }.count
     }
 
     /// Pre-op patients with "需追踪" tag.
     private var preOpTrackingCount: Int {
-        allPatients.filter { !$0.isPostOp && $0.tags.contains("需追踪") }.count
+        visiblePatients.filter { !$0.isPostOp && $0.tags.contains("需追踪") }.count
     }
     
     // Privacy Lock properties
@@ -77,6 +82,7 @@ struct ContentView: View {
             }
         }
         .onAppear {
+            purgeExpiredTrash(in: modelContext)
             if requireBiometrics && !isUnlocked {
                 authenticate()
             }
@@ -88,6 +94,7 @@ struct ContentView: View {
                     isUnlocked = false
                 }
             } else if phase == .active {
+                purgeExpiredTrash(in: modelContext)
                 // Keep trying to auth when active
                 if requireBiometrics && !isUnlocked {
                     authenticate()

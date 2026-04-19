@@ -9,12 +9,16 @@ struct OverviewView: View {
 
     private let trackingTag = "需追踪"
 
+    private var visiblePatients: [Patient] {
+        activePatients(from: allPatients)
+    }
+
     private var preOpPatients: [Patient] {
-        allPatients.filter { !$0.isPostOp }
+        visiblePatients.filter { !$0.isPostOp }
     }
 
     private var postOpPatients: [Patient] {
-        allPatients.filter(\.isPostOp)
+        visiblePatients.filter(\.isPostOp)
     }
 
     private var unscheduledPatients: [Patient] {
@@ -62,7 +66,7 @@ struct OverviewView: View {
     }
 
     private var recentPatients: [Patient] {
-        allPatients.sorted { $0.createdAt > $1.createdAt }
+        visiblePatients.sorted { $0.createdAt > $1.createdAt }
     }
 
     private var sections: [OverviewDataSection] {
@@ -126,7 +130,7 @@ struct OverviewView: View {
 
     private var searchResults: [Patient] {
         guard !searchText.isEmpty else { return [] }
-        return allPatients.filter { patient in
+        return visiblePatients.filter { patient in
             let matchesText = patient.rawInput.localizedCaseInsensitiveContains(searchText) ||
             (patient.parsedName?.localizedCaseInsensitiveContains(searchText) ?? false)
             let matchesTag = patient.tags.contains { $0.localizedCaseInsensitiveContains(searchText) }

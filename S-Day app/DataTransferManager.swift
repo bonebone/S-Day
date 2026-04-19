@@ -13,6 +13,7 @@ struct SDayExportData: Codable {
         var tags: [String]
         var createdAt: Date
         var order: Int
+        var trashedAt: Date?
     }
     
     var patients: [ExportedPatient]
@@ -57,7 +58,8 @@ class DataTransferManager {
                 surgeryDate: p.surgeryDate,
                 tags: p.tags,
                 createdAt: p.createdAt,
-                order: p.order
+                order: p.order,
+                trashedAt: p.trashedAt
             )
         }
         
@@ -106,7 +108,14 @@ class DataTransferManager {
         
         // 3. Create new patients
         for ep in exportData.patients {
-            let p = Patient(rawInput: ep.rawInput, parsedName: ep.parsedName, surgeryDate: ep.surgeryDate, tags: ep.tags, order: ep.order)
+            let p = Patient(
+                rawInput: ep.rawInput,
+                parsedName: ep.parsedName,
+                surgeryDate: ep.surgeryDate,
+                tags: ep.tags,
+                order: ep.order,
+                trashedAt: ep.trashedAt
+            )
             p.id = ep.id
             p.createdAt = ep.createdAt
             context.insert(p)

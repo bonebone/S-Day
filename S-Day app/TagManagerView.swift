@@ -11,9 +11,13 @@ struct TagManagerView: View {
     // Which tag's color picker is open
     @State private var colorPickerTag: String? = nil
 
+    var visiblePatients: [Patient] {
+        activePatients(from: patients)
+    }
+
     var allTags: [String] {
         // Union of tags on patients + tags created in the manager (stored in colorStore)
-        let fromPatients = Set(patients.flatMap { $0.tags })
+        let fromPatients = Set(visiblePatients.flatMap { $0.tags })
         let fromColorStore = Set(colorStore.colorIndices.keys)
         return Array(fromPatients.union(fromColorStore)).sorted()
     }
@@ -31,7 +35,7 @@ struct TagManagerView: View {
                 ForEach(builtinTags, id: \.self) { tag in
                     BuiltinTagRow(
                         tag: tag,
-                        patientCount: patients.filter { $0.tags.contains(tag) }.count,
+                        patientCount: visiblePatients.filter { $0.tags.contains(tag) }.count,
                         onColorDotTap: { colorPickerTag = tag }
                     )
                 }
@@ -56,7 +60,7 @@ struct TagManagerView: View {
                 ForEach(userTags, id: \.self) { tag in
                     TagManagerRow(
                         tag: tag,
-                        patientCount: patients.filter { $0.tags.contains(tag) }.count,
+                        patientCount: visiblePatients.filter { $0.tags.contains(tag) }.count,
                         onColorDotTap: { colorPickerTag = tag },
                         onRename: { old, new in renameTag(from: old, to: new) },
                         onDelete: { deleteTag(tag) }

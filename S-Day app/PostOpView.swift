@@ -30,15 +30,19 @@ struct PostOpView: View {
     @State private var showingToast = false
     @State private var toastMessage = ""
     @State private var isAwaitingBatchDeleteConfirmation = false
+
+    private var visiblePatients: [Patient] {
+        activePatients(from: patients)
+    }
     
     private var postOpPatients: [Patient] {
-        patients.filter { $0.isPostOp }
+        visiblePatients.filter { $0.isPostOp }
     }
 
     private var tagFilterSnapshot: TagFilterSnapshot {
         tagFilterStore.snapshot(
             for: .postOp,
-            patients: patients,
+            patients: visiblePatients,
             selectedTag: selectedTag
         )
     }
@@ -233,6 +237,10 @@ struct PostOpView: View {
                                                        },
                                                        onCopyExport: {
                                                            copySinglePatient(patient)
+                                                       },
+                                                       onDelete: {
+                                                           movePatientsToTrash([patient])
+                                                           UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                                                        })
                                                 .animation(.easeInOut(duration: 0.2), value: patient.tags)
                                                 .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
@@ -441,7 +449,7 @@ struct PostOpView: View {
                         
                         Section {
                             Button(role: .destructive) {
-                                let toUpdate = patients.filter { selectedPatients.contains($0.id) }
+                                let toUpdate = visiblePatients.filter { selectedPatients.contains($0.id) }
                                 for p in toUpdate { p.surgeryDate = nil }
                                 showBatchDatePicker = false
                                 withAnimation { isSelectionMode = false; selectedPatients.removeAll() }
@@ -457,8 +465,8 @@ struct PostOpView: View {
                     }
                     .navigationTitle("批量设日期")
                     .navigationBarItems(trailing: Button("完成") {
-                        let toUpdate = patients.filter { selectedPatients.contains($0.id) }
-                        movePatientsToEndOfSurgeryGroup(toUpdate, surgeryDate: batchSurgeryDate, allPatients: patients)
+                        let toUpdate = visiblePatients.filter { selectedPatients.contains($0.id) }
+                        movePatientsToEndOfSurgeryGroup(toUpdate, surgeryDate: batchSurgeryDate, allPatients: visiblePatients)
                         showBatchDatePicker = false
                         withAnimation { isSelectionMode = false; selectedPatients.removeAll() }
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
@@ -467,7 +475,7 @@ struct PostOpView: View {
                 .presentationDetents([.fraction(0.75), .large])
             }
             .sheet(isPresented: $showBatchTagSheet) {
-                let toUpdate = patients.filter { selectedPatients.contains($0.id) }
+                let toUpdate = visiblePatients.filter { selectedPatients.contains($0.id) }
                 BatchTagSheetView(patients: toUpdate, existingAllTags: existingTags()) {
                     withAnimation { isSelectionMode = false; selectedPatients.removeAll() }
                 }
@@ -486,7 +494,7 @@ struct PostOpView: View {
                         if patient.surgeryDate != nil {
                             Section {
                                 Button(role: .destructive) {
-                                    movePatientsToEndOfSurgeryGroup([patient], surgeryDate: nil, allPatients: patients)
+                                    movePatientsToEndOfSurgeryGroup([patient], surgeryDate: nil, allPatients: visiblePatients)
                                     selectedPatientForDate = nil
                                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                                 } label: {
@@ -501,7 +509,7 @@ struct PostOpView: View {
                     }
                     .navigationTitle("设置手术日")
                     .navigationBarItems(trailing: Button("完成") {
-                        movePatientsToEndOfSurgeryGroup([patient], surgeryDate: singlePatientSurgeryDate, allPatients: patients)
+                        movePatientsToEndOfSurgeryGroup([patient], surgeryDate: singlePatientSurgeryDate, allPatients: visiblePatients)
                         selectedPatientForDate = nil
                     })
                 }
@@ -552,12 +560,12 @@ struct PostOpView: View {
     private func handleDrop(items: [String], targetDate: Date, groupItems: [Patient]) {
         for uuidString in items {
             guard let id = UUID(uuidString: uuidString) else { continue }
-            if let patient = patients.first(where: { $0.id == id }) {
+            if let patient = visiblePatients.first(where: { $0.id == id }) {
                 let currentStart = patient.surgeryDate.map { Calendar.current.startOfDay(for: $0) }
                 let targetStart = Calendar.current.startOfDay(for: targetDate)
                 
                 if currentStart != targetStart {
-                    movePatientsToEndOfSurgeryGroup([patient], surgeryDate: targetDate, allPatients: patients)
+                    movePatientsToEndOfSurgeryGroup([patient], surgeryDate: targetDate, allPatients: visiblePatients)
                     let impact = UIImpactFeedbackGenerator(style: .heavy)
                     impact.impactOccurred()
                 }
@@ -594,7 +602,7 @@ struct PostOpView: View {
 
     private func handleBatchCopyTap() {
         guard !selectedPatients.isEmpty, isSelectionMode else { return }
-        let selected = patients.filter { selectedPatients.contains($0.id) }
+        let selected = visiblePatients.filter { selectedPatients.contains($0.id) }
         let text = exportText(for: selected, sortDatesDescending: true, titleStyle: .postOp)
         UIPasteboard.general.string = text
         let generator = UINotificationFeedbackGenerator()
@@ -608,10 +616,8 @@ struct PostOpView: View {
 
     private func confirmBatchDelete() {
         isAwaitingBatchDeleteConfirmation = false
-        let toDelete = patients.filter { selectedPatients.contains($0.id) }
-        for patient in toDelete {
-            modelContext.delete(patient)
-        }
+        let toDelete = visiblePatients.filter { selectedPatients.contains($0.id) }
+        movePatientsToTrash(toDelete)
         selectedPatients.removeAll()
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         withAnimation {

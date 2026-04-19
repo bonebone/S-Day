@@ -83,7 +83,7 @@ final class TagFilterStore: ObservableObject {
         patients: [Patient],
         selectedTag: String?
     ) -> TagFilterSnapshot {
-        let scopedPatients = patients.filter { patient in
+        let scopedPatients = activePatients(from: patients).filter { patient in
             switch scope {
             case .preOp:
                 return !patient.isPostOp

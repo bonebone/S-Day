@@ -117,7 +117,6 @@ struct AdaptiveActionBar<ActionContent: View>: View {
 }
 
 struct PatientRow: View {
-    @Environment(\.modelContext) private var modelContext
     @ObservedObject private var colorStore = TagColorStore.shared
     @AppStorage("patientTagDisplayMode") private var patientTagDisplayMode: PatientTagDisplayMode = .followText
     @Bindable var patient: Patient
@@ -136,6 +135,7 @@ struct PatientRow: View {
     var onShowDatePicker: (() -> Void)? = nil
     var onShowTagSheet: (() -> Void)? = nil
     var onCopyExport: (() -> Void)? = nil
+    var onDelete: (() -> Void)? = nil
     
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
@@ -183,8 +183,7 @@ struct PatientRow: View {
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if !isSelectionMode {
                 Button(role: .destructive) {
-                    modelContext.delete(patient)
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    onDelete?()
                 } label: {
                     Label("删除", systemImage: "trash")
                         .labelStyle(.iconOnly)

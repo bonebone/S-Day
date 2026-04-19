@@ -31,6 +31,10 @@ struct SettingsView: View {
     
     private let confirmPhrase = "清除所有数据"
     private let importConfirmPhrase = "确认导入并覆盖"
+
+    private var trashCount: Int {
+        trashedPatients(from: patients).count
+    }
     
     var body: some View {
         NavigationStack {
@@ -148,6 +152,18 @@ struct SettingsView: View {
                         } label: {
                             Label("导入数据", systemImage: "square.and.arrow.down")
                         }
+
+                        NavigationLink(destination: TrashView()) {
+                            HStack {
+                                Label("回收站", systemImage: "archivebox")
+                                Spacer()
+                                if trashCount > 0 {
+                                    Text("\(trashCount)")
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                        }
+
                         Button(role: .destructive) {
                             confirmText = ""
                             showingClearConfirm = true
@@ -158,6 +174,9 @@ struct SettingsView: View {
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
+            .onAppear {
+                purgeExpiredTrash(in: modelContext)
+            }
             .sheet(isPresented: $showingClearConfirm) {
                 ClearDataConfirmView(
                     confirmPhrase: confirmPhrase,
@@ -388,7 +407,7 @@ struct ClearDataConfirmView: View {
                 Text("清除所有数据")
                     .font(.title2)
                     .bold()
-                (Text("此操作不可撤销，所有病人数据将永久删除。\n请在下方输入")
+                (Text("此操作不可撤销，术前、术后以及回收站中的所有病人数据都将永久删除。\n请在下方输入")
                     + Text(confirmPhrase).bold()
                     + Text("以确认。"))
                     .font(.callout)
