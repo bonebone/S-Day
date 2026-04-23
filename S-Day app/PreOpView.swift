@@ -258,6 +258,7 @@ struct PreOpView: View {
                                                    onDelete: {
                                                        movePatientsToTrash([patient])
                                                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                                       showToast("已删除")
                                                    })
                                             .animation(.easeInOut(duration: 0.2), value: patient.tags)
                                             .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
@@ -660,6 +661,7 @@ struct PreOpView: View {
         withAnimation {
             isSelectionMode = false
         }
+        showToast("已删除所选条目")
     }
     
 

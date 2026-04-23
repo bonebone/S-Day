@@ -305,8 +305,11 @@ struct SettingsView: View {
         for patient in patients {
             modelContext.delete(patient)
         }
+        TagColorStore.shared.resetToDefaults()
+        TagFilterStore.shared.resetPinnedTags()
         let impact = UIImpactFeedbackGenerator(style: .heavy)
         impact.impactOccurred()
+        showToast("已清除所有数据")
     }
 
     @ViewBuilder

@@ -78,6 +78,18 @@ final class TagFilterStore: ObservableObject {
         pinnedTagsByScope = updated
     }
 
+    func resetPinnedTags() {
+        pinnedTagsByScope = [:]
+    }
+
+    func exportSnapshot() -> [String: [String]] {
+        pinnedTagsByScope
+    }
+
+    func restorePinnedTags(_ snapshot: [String: [String]]) {
+        pinnedTagsByScope = snapshot
+    }
+
     func snapshot(
         for scope: TagFilterScope,
         patients: [Patient],

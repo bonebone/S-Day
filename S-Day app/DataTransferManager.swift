@@ -18,6 +18,8 @@ struct SDayExportData: Codable {
     
     var patients: [ExportedPatient]
     var tagColors: [String: Int]
+    var recentTagUsageTimestamps: [String: TimeInterval]?
+    var tagFilterPinnedTagsByScope: [String: [String]]?
     var appAppearance: AppAppearance?
     var patientTagDisplayMode: PatientTagDisplayMode?
     var requireBiometrics: Bool?
@@ -70,10 +72,13 @@ class DataTransferManager {
         
         // Use UserDefaults to retrieve toggle state
         let currentRequireBiometrics = UserDefaults.standard.bool(forKey: "requireBiometrics")
+        let tagColorSnapshot = TagColorStore.shared.exportSnapshot()
         
         return SDayExportData(
             patients: exportedPatients,
-            tagColors: TagColorStore.shared.colorIndices,
+            tagColors: tagColorSnapshot.colorIndices,
+            recentTagUsageTimestamps: tagColorSnapshot.recentUsageTimestamps,
+            tagFilterPinnedTagsByScope: TagFilterStore.shared.exportSnapshot(),
             appAppearance: currentAppearance,
             patientTagDisplayMode: currentPatientTagDisplayMode,
             requireBiometrics: currentRequireBiometrics
@@ -90,7 +95,13 @@ class DataTransferManager {
         }
         
         // 2. Clear and set tags + app state settings
-        TagColorStore.shared.colorIndices = exportData.tagColors
+        TagColorStore.shared.restore(
+            from: TagColorSnapshot(
+                colorIndices: exportData.tagColors,
+                recentUsageTimestamps: exportData.recentTagUsageTimestamps ?? [:]
+            )
+        )
+        TagFilterStore.shared.restorePinnedTags(exportData.tagFilterPinnedTagsByScope ?? [:])
         if let importedAppearance = exportData.appAppearance {
             UserDefaults.standard.set(importedAppearance.rawValue, forKey: "appAppearance")
         }

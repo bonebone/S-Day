@@ -91,8 +91,12 @@ struct TrashView: View {
                                     patient: patient,
                                     isSelectionMode: isSelectionMode,
                                     isSelected: selectedPatients.contains(patient.id),
+                                    isAwaitingPermanentDeleteConfirmation: isAwaitingPermanentDeleteConfirmation,
                                     onToggleSelection: {
                                         toggleSelection(for: patient)
+                                    },
+                                    onCancelPermanentDeleteConfirmation: {
+                                        cancelPermanentDeleteConfirmation()
                                     },
                                     onEnterSelectionMode: {
                                         withAnimation {
@@ -143,7 +147,16 @@ struct TrashView: View {
                                 .font(.title2)
                                 .frame(maxWidth: .infinity, minHeight: 44)
                         }
-                        .disabled(selectedPatients.isEmpty)
+                        .disabled(selectedPatients.isEmpty || isAwaitingPermanentDeleteConfirmation)
+                        .overlay {
+                            if isSelectionMode && isAwaitingPermanentDeleteConfirmation && !selectedPatients.isEmpty {
+                                Color.clear
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        cancelPermanentDeleteConfirmation()
+                                    }
+                            }
+                        }
 
                         Button(role: .destructive) {
                             guard !selectedPatients.isEmpty else { return }
@@ -214,8 +227,11 @@ struct TrashView: View {
             purgeExpiredTrash(in: modelContext)
         }
         .onChange(of: selectedPatients) { _, _ in
-            if selectedPatients.isEmpty {
-                isAwaitingPermanentDeleteConfirmation = false
+            cancelPermanentDeleteConfirmation()
+        }
+        .onChange(of: isSelectionMode) { _, newValue in
+            if !newValue {
+                cancelPermanentDeleteConfirmation()
             }
         }
     }
@@ -265,6 +281,13 @@ struct TrashView: View {
         showToast("已永久删除所选条目")
     }
 
+    private func cancelPermanentDeleteConfirmation() {
+        guard isAwaitingPermanentDeleteConfirmation else { return }
+        withAnimation(.snappy(duration: 0.18, extraBounce: 0)) {
+            isAwaitingPermanentDeleteConfirmation = false
+        }
+    }
+
     private func showToast(_ message: String) {
         toastMessage = message
         withAnimation {
@@ -297,7 +320,9 @@ private struct TrashPatientRow: View {
     let patient: Patient
     let isSelectionMode: Bool
     let isSelected: Bool
+    let isAwaitingPermanentDeleteConfirmation: Bool
     let onToggleSelection: () -> Void
+    let onCancelPermanentDeleteConfirmation: () -> Void
     let onEnterSelectionMode: () -> Void
     let onRestore: () -> Void
     let onDeletePermanently: () -> Void
@@ -330,7 +355,11 @@ private struct TrashPatientRow: View {
         .contentShape(Rectangle())
         .onTapGesture {
             if isSelectionMode {
-                onToggleSelection()
+                if isAwaitingPermanentDeleteConfirmation {
+                    onCancelPermanentDeleteConfirmation()
+                } else {
+                    onToggleSelection()
+                }
             }
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {

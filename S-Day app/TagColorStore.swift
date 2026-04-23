@@ -172,6 +172,23 @@ final class TagColorStore: ObservableObject {
         recentUsageTimestamps[newName] = timestamp
     }
 
+    func exportSnapshot() -> TagColorSnapshot {
+        TagColorSnapshot(
+            colorIndices: colorIndices,
+            recentUsageTimestamps: recentUsageTimestamps
+        )
+    }
+
+    func restore(from snapshot: TagColorSnapshot) {
+        colorIndices = snapshot.colorIndices
+        recentUsageTimestamps = snapshot.recentUsageTimestamps
+    }
+
+    func resetToDefaults() {
+        colorIndices = Self.builtinDefaults
+        recentUsageTimestamps = [:]
+    }
+
     /// Returns the color index to assign to the (n)th user-created tag (0-indexed).
     /// Sequence: level-5 of all 9 groups, then level-4, …, level-1.
     /// Slots occupied by builtin tags are skipped so they are never reused.
@@ -211,4 +228,9 @@ final class TagColorStore: ObservableObject {
         let preset = presetColors[index % presetColors.count]
         return Color(hex: preset.textHex)
     }
+}
+
+struct TagColorSnapshot: Codable {
+    var colorIndices: [String: Int]
+    var recentUsageTimestamps: [String: TimeInterval]
 }
