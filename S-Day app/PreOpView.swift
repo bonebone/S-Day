@@ -153,22 +153,23 @@ struct PreOpView: View {
                             }
                         }
                     }
+
+                    GhostPatientRow(
+                        onCommit: { newName, newTags in
+                            addPatient(name: newName, tags: newTags)
+                        },
+                        focusTrigger: navigationState.preOpComposerFocusToken
+                    )
+                    .id("preOpGhostPatientRow")
+                    .opacity(isSelectionMode ? 0 : 1)
+                    .allowsHitTesting(!isSelectionMode)
+                    .accessibilityHidden(isSelectionMode)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 4)
+                    .padding(.bottom, 4)
                 
                     List {
                         Color.clear.frame(height: 0).listRowInsets(EdgeInsets()).listRowSeparator(.hidden).id("topPosition")
-
-                        // Keep the row height in selection mode so the first patient does not shift upward.
-                        GhostPatientRow(
-                            onCommit: { newName, newTags in
-                            addPatient(name: newName, tags: newTags)
-                            },
-                            focusTrigger: navigationState.preOpComposerFocusToken
-                        )
-                        .id("preOpGhostPatientRow")
-                        .opacity(isSelectionMode ? 0 : 1)
-                        .allowsHitTesting(!isSelectionMode)
-                        .accessibilityHidden(isSelectionMode)
-                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 4, trailing: 16))
 
                         if shouldShowEmptyState {
                             Text(searchText.isEmpty && selectedTag == nil ? "暂无术前病人" : "暂无匹配结果")

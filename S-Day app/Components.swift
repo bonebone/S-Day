@@ -54,7 +54,7 @@ struct AdaptiveTitleSearchHeader: View {
                 onExpand: expandSearch,
                 onCollapse: collapseSearch,
                 isExpanded: isSearchExpanded || !searchText.isEmpty,
-                expandedWidth: 184,
+                expandedWidth: 256,
                 collapsedWidth: 68
             )
             .layoutPriority(0)
@@ -681,28 +681,58 @@ struct GhostPatientRow: View {
     var focusTrigger: Int = 0
     @State private var input: String = ""
     @State private var tags: [String] = []
-    private let rowVerticalPadding: CGFloat = 8
+    private let capsuleHeight: CGFloat = 36
     
     var body: some View {
-        HStack(alignment: .center, spacing: 8) {
-            Image(systemName: "plus")
-                .foregroundColor(.gray)
-                .font(.body)
-            TagTokenField(
-                text: $input,
-                tags: $tags,
-                allTags: existingTags(),
-                placeholder: "新病人...",
-                autoFocusIfEmpty: false,
-                autoFocus: focusTrigger > 0,
-                focusTrigger: focusTrigger,
-                keepFocusOnSubmit: true,
-                onSubmit: {
-                    submit()
-                }
+        ZStack {
+            Capsule()
+                .fill(Color.white)
+                .scaleEffect(x: 1.01, y: 1.01)
+                .offset(y: 0.25)
+                .shadow(color: Color.black.opacity(0.16), radius: 18, x: 0, y: 8)
+                .shadow(color: Color.black.opacity(0.06), radius: 5, x: 0, y: 2)
+
+            HStack(alignment: .center, spacing: 8) {
+                Image(systemName: "plus")
+                    .foregroundColor(.gray)
+                    .font(.body)
+                TagTokenField(
+                    text: $input,
+                    tags: $tags,
+                    allTags: existingTags(),
+                    placeholder: "新病人...",
+                    autoFocusIfEmpty: false,
+                    autoFocus: focusTrigger > 0,
+                    focusTrigger: focusTrigger,
+                    keepFocusOnSubmit: true,
+                    onSubmit: {
+                        submit()
+                    }
+                )
+                .frame(maxHeight: .infinity, alignment: .center)
+            }
+            .padding(.horizontal, 12)
+            .frame(height: capsuleHeight)
+            .background(
+                Capsule()
+                    .fill(Color(UIColor.systemBackground))
             )
+            .overlay(
+                Capsule()
+                    .stroke(Color.white.opacity(0.92), lineWidth: 1)
+            )
+            .overlay(alignment: .top) {
+                Capsule()
+                    .stroke(Color.white.opacity(0.95), lineWidth: 1)
+                    .padding(.horizontal, 2)
+                    .mask(
+                        Rectangle()
+                            .frame(height: 16)
+                            .offset(y: -1)
+                    )
+            }
         }
-        .padding(.vertical, rowVerticalPadding)
+        .fixedSize(horizontal: false, vertical: true)
     }
     
     private func submit() {
@@ -1146,6 +1176,8 @@ struct BackspaceDetectingTextField: UIViewRepresentable {
         tf.font = UIFont.preferredFont(forTextStyle: .body)
         tf.setContentHuggingPriority(.defaultLow, for: .horizontal)
         tf.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        tf.setContentHuggingPriority(.required, for: .vertical)
+        tf.setContentCompressionResistancePriority(.required, for: .vertical)
         tf.returnKeyType = .done
         tf.autocorrectionType = .no
         tf.autocapitalizationType = .words
@@ -1302,8 +1334,59 @@ struct NativeSearchBar: View {
     var expandedWidth: CGFloat = 184
     var collapsedWidth: CGFloat = 100
     @FocusState private var isFocused: Bool
+    private let capsuleHeight: CGFloat = 36
+    private var currentWidth: CGFloat { isExpanded ? expandedWidth : max(collapsedWidth, 90) }
 
     var body: some View {
+        searchContent
+        .frame(width: currentWidth, height: capsuleHeight, alignment: .leading)
+        .background {
+            Capsule()
+                .fill(isExpanded ? Color(UIColor.systemBackground) : Color(UIColor.systemGray6))
+        }
+        .overlay(
+            Capsule()
+                .stroke(Color.white.opacity(isExpanded ? 0.92 : 0), lineWidth: 1)
+        )
+        .overlay(alignment: .top) {
+            Capsule()
+                .stroke(Color.white.opacity(isExpanded ? 0.95 : 0), lineWidth: 1)
+                .padding(.horizontal, 2)
+                .mask(
+                    Rectangle()
+                        .frame(height: 16)
+                        .offset(y: -1)
+                )
+        }
+        .background {
+            if isExpanded {
+                Capsule()
+                    .fill(Color.white)
+                    .scaleEffect(x: 1.01, y: 1.01)
+                    .offset(y: 0.25)
+                    .shadow(color: Color.black.opacity(0.16), radius: 18, x: 0, y: 8)
+                    .shadow(color: Color.black.opacity(0.06), radius: 5, x: 0, y: 2)
+            }
+        }
+        .contentShape(Capsule())
+        .onTapGesture {
+            guard !isExpanded else { return }
+            withAnimation {
+                onExpand?()
+            }
+        }
+        .onChange(of: focusToken) { _, _ in
+            isFocused = true
+        }
+        .onChange(of: isFocused) { _, focused in
+            guard !focused, isExpanded, text.isEmpty else { return }
+            withAnimation {
+                onCollapse?()
+            }
+        }
+    }
+
+    private var searchContent: some View {
         HStack {
             Image(systemName: "magnifyingglass")
                 .foregroundColor(.secondary)
@@ -1314,6 +1397,7 @@ struct NativeSearchBar: View {
                     .submitLabel(.search)
                     .autocorrectionDisabled()
                     .focused($isFocused)
+                    .frame(maxHeight: .infinity, alignment: .center)
 
                 if !text.isEmpty {
                     Button(action: {
@@ -1333,33 +1417,8 @@ struct NativeSearchBar: View {
                     .fixedSize(horizontal: true, vertical: false)
             }
         }
-        .frame(width: isExpanded ? expandedWidth : collapsedWidth, alignment: .leading)
-        .contentShape(Capsule())
-        .onTapGesture {
-            guard !isExpanded else { return }
-            withAnimation {
-                onExpand?()
-            }
-        }
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color(UIColor.systemGray6))
-        .clipShape(Capsule())
-        .shadow(
-            color: isExpanded ? Color.black.opacity(0.08) : .clear,
-            radius: isExpanded ? 6 : 0,
-            x: 0,
-            y: isExpanded ? 2 : 0
-        )
-        .onChange(of: focusToken) { _, _ in
-            isFocused = true
-        }
-        .onChange(of: isFocused) { _, focused in
-            guard !focused, isExpanded, text.isEmpty else { return }
-            withAnimation {
-                onCollapse?()
-            }
-        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 }
 
