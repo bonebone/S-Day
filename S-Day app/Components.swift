@@ -59,6 +59,7 @@ struct AdaptiveTitleSearchHeader: View {
             )
             .layoutPriority(0)
         }
+        .zIndex(isSearchExpanded || !searchText.isEmpty ? 1 : 0)
         .animation(.snappy(duration: 0.28, extraBounce: 0), value: isSearchExpanded)
         .animation(.snappy(duration: 0.28, extraBounce: 0), value: searchText.isEmpty)
     }
@@ -1344,6 +1345,12 @@ struct NativeSearchBar: View {
         .padding(.vertical, 8)
         .background(Color(UIColor.systemGray6))
         .clipShape(Capsule())
+        .shadow(
+            color: isExpanded ? Color.black.opacity(0.08) : .clear,
+            radius: isExpanded ? 6 : 0,
+            x: 0,
+            y: isExpanded ? 2 : 0
+        )
         .onChange(of: focusToken) { _, _ in
             isFocused = true
         }
