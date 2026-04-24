@@ -39,15 +39,28 @@ struct AdaptiveTitleSearchHeader: View {
     let title: String
     @Binding var searchText: String
     var placeholder: String
+    @State private var isSearchExpanded = false
+    @State private var searchFocusToken = 0
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             titleView
+            Spacer(minLength: 0)
 
-            NativeSearchBar(text: $searchText, placeholder: placeholder)
-                .frame(minWidth: 120, maxWidth: .infinity)
-                .layoutPriority(0)
+            NativeSearchBar(
+                text: $searchText,
+                placeholder: placeholder,
+                focusToken: searchFocusToken,
+                onExpand: expandSearch,
+                onCollapse: collapseSearch,
+                isExpanded: isSearchExpanded || !searchText.isEmpty,
+                expandedWidth: 184,
+                collapsedWidth: 68
+            )
+            .layoutPriority(0)
         }
+        .animation(.snappy(duration: 0.28, extraBounce: 0), value: isSearchExpanded)
+        .animation(.snappy(duration: 0.28, extraBounce: 0), value: searchText.isEmpty)
     }
 
     private var titleView: some View {
@@ -57,6 +70,16 @@ struct AdaptiveTitleSearchHeader: View {
             .lineLimit(1)
             .minimumScaleFactor(0.72)
             .layoutPriority(1)
+    }
+
+    private func expandSearch() {
+        isSearchExpanded = true
+        searchFocusToken += 1
+    }
+
+    private func collapseSearch() {
+        guard searchText.isEmpty else { return }
+        isSearchExpanded = false
     }
 }
 
@@ -1271,32 +1294,65 @@ func completeTag(_ tag: String, in text: inout String) {
 struct NativeSearchBar: View {
     @Binding var text: String
     var placeholder: String = "搜索..."
-    
+    var focusToken: Int = 0
+    var onExpand: (() -> Void)? = nil
+    var onCollapse: (() -> Void)? = nil
+    var isExpanded: Bool = true
+    var expandedWidth: CGFloat = 184
+    var collapsedWidth: CGFloat = 100
+    @FocusState private var isFocused: Bool
+
     var body: some View {
         HStack {
             Image(systemName: "magnifyingglass")
                 .foregroundColor(.secondary)
-            
-            TextField(placeholder, text: $text)
-                .submitLabel(.search)
-                .autocorrectionDisabled()
-            
-            if !text.isEmpty {
-                Button(action: {
-                    withAnimation {
-                        text = ""
+
+            if isExpanded {
+                TextField(placeholder, text: $text)
+                    .font(.body)
+                    .submitLabel(.search)
+                    .autocorrectionDisabled()
+                    .focused($isFocused)
+
+                if !text.isEmpty {
+                    Button(action: {
+                        withAnimation {
+                            text = ""
+                        }
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
                     }
-                }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.secondary)
                 }
+            } else {
+                Text("搜索")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+        }
+        .frame(width: isExpanded ? expandedWidth : collapsedWidth, alignment: .leading)
+        .contentShape(Capsule())
+        .onTapGesture {
+            guard !isExpanded else { return }
+            withAnimation {
+                onExpand?()
             }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(Color(UIColor.systemGray6))
         .clipShape(Capsule())
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .onChange(of: focusToken) { _, _ in
+            isFocused = true
+        }
+        .onChange(of: isFocused) { _, focused in
+            guard !focused, isExpanded, text.isEmpty else { return }
+            withAnimation {
+                onCollapse?()
+            }
+        }
     }
 }
 
